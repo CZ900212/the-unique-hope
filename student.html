@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Student Portal - The Unique Hope</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Source+Serif+4:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="dashboard-container">
+  <div class="sidebar">
+    <a href="index.html" class="sidebar-brand" style="text-decoration:none;">The Unique Hope</a>
+    <div class="sidebar-menu">
+      <button type="button" class="sidebar-item active"><span></span> <span data-i18n="student.sidebarJourney">My Journey</span></button>
+      <button type="button" class="sidebar-item" onclick="document.getElementById('meetingLinkModal').style.display='flex'"><span></span> <span data-i18n="common.meetingLink">Meeting Link</span></button>
+      <button type="button" class="sidebar-item" onclick="I18nUtils.toggleLang()" style="margin-top: auto;"><span></span> <span data-i18n="nav.switchLang">中文</span></button>
+      <button type="button" class="sidebar-item" onclick="logout()" style="color: var(--status-error);"><span></span> <span data-i18n="nav.logout">Logout</span></button>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="dash-header">
+      <div>
+          <h2 class="display-3" data-i18n="student.dashTitle">My Learning Path</h2>
+          <p class="text-lead text-small" data-i18n="student.dashSubtitle">Track your progress and growth.</p>
+      </div>
+      <div class="status-chip success" id="statusBadge" data-i18n="student.statusOnTrack">On Track</div>
+    </div>
+
+    <div class="grid grid-2">
+        <!-- Main Evidence Card -->
+        <div class="dash-card" style="min-height: 400px; display: flex; flex-direction: column;">
+            <h3 style="font-size: 1.2rem; margin-bottom: 20px;" data-i18n="student.weekLesson">This Week's Lesson</h3>
+            
+            <div style="flex: 1; border-radius: var(--radius-md); overflow: hidden; background: var(--color-bg-secondary); display: flex; justify-content: center; align-items: center; position: relative;">
+                <div id="placeholder" style="text-align: center; color: var(--color-text-light);">
+                    <span style="font-size: 1.5rem;">...</span>
+                    <p data-i18n="student.waitingUpload">Waiting for teacher upload...</p>
+                </div>
+                <img id="evidenceImg" alt="Lesson evidence" src="" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+            </div>
+            
+            <div class="text-small" style="margin-top: 16px; padding: 12px; background: var(--color-primary-light); color: var(--color-primary-dark); border-radius: var(--radius-sm); display: none;" id="teacherNotes">
+                <strong data-i18n="student.teacherNotes">Teacher's Notes:</strong> <span id="notesContent"></span>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="flex-col gap-lg">
+            <!-- Progress Card -->
+            <div class="dash-card" style="flex: 1;">
+                <h3 style="font-size: 1.2rem; margin-bottom: 20px;" data-i18n="teacher.termProgress">Term Progress</h3>
+                <div id="weekDots" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;"></div>
+                <div style="margin-top: 20px; text-align: center;">
+                    <span class="display-3" style="color: var(--color-primary);" id="progressPercent">0%</span>
+                    <p class="text-small" data-i18n="teacher.completionRate">Completion Rate</p>
+                </div>
+            </div>
+
+            <!-- Feedback Card -->
+            <div class="dash-card" style="flex: 1;">
+                <h3 style="font-size: 1.2rem; margin-bottom: 20px;" data-i18n="student.myFeedback">My Feedback</h3>
+                <textarea id="feedback" class="form-control" data-i18n-placeholder="student.feedbackPlaceholder" placeholder="How was the lesson? Share your thoughts..." style="height: 120px; margin-bottom: 16px;"></textarea>
+                <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;">
+                    <div class="text-small" style="color: var(--color-text-light); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <label for="feedbackRating" data-i18n="student.rating">Rating</label>
+                        <select id="feedbackRating" class="form-control" style="width: 80px; height: 34px; padding: 4px 8px;">
+                            <option value="5">5</option>
+                            <option value="4">4</option>
+                            <option value="3">3</option>
+                            <option value="2">2</option>
+                            <option value="1">1</option>
+                        </select>
+                        <select id="feedbackVisibility" class="form-control" style="width: auto; min-width: 100px; height: 34px; padding: 4px 8px;">
+                            <option value="shared" data-i18n="common.shared">Shared</option>
+                            <option value="private" data-i18n="common.private">Private</option>
+                        </select>
+                    </div>
+                    <button class="btn-primary" id="saveFeedbackBtn" onclick="saveFeedback()" style="white-space: nowrap;" data-i18n="student.submitFeedback">Submit Feedback</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Week Selector (Simple List) -->
+    <div class="dash-card" style="margin-top: 20px;">
+        <h3 style="font-size: 1.2rem; margin-bottom: 20px;" data-i18n="student.history">History</h3>
+        <div style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 10px;" id="weekList">
+            <!-- Injected via JS -->
+        </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="meetingLinkModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 2000;">
+    <div class="glass-card" style="width: 500px; padding: 40px; background: white; border-radius: 38px !important; overflow: hidden;">
+        <h3 style="margin-bottom: 20px;" data-i18n="common.meetingLinkTitle">Tencent Meeting Link</h3>
+        <div id="meetingLinkDisplay" style="padding: 14px; background: var(--color-bg-secondary); border-radius: var(--radius-sm); word-break: break-all; margin-bottom: 16px; min-height: 48px; display: flex; align-items: center;" data-i18n="common.noMeetingLink">No meeting link available yet.</div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-primary" style="flex: 1;" onclick="copyMeetingLink()" data-i18n="common.copyLink">Copy Link</button>
+            <a id="meetingOpenBtn" href="#" target="_blank" rel="noopener" class="btn-secondary" style="text-align: center; text-decoration: none; display: none;" data-i18n="common.openMeeting">Open Meeting</a>
+            <button class="btn-secondary" onclick="document.getElementById('meetingLinkModal').style.display='none'" data-i18n="common.close">Close</button>
+        </div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/demo-api.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/toast.js"></script>
+<script>
+    let currentWeek = 1;
+    let dashboardData = null;
+    let currentLesson = null;
+    let currentFeedback = null;
+    let currentUser = null;
+
+    function normalizeStorageKeyPart(value) {
+        return String(value || "")
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9._-]/g, "_");
+    }
+
+    function getMeetingLinkStorageKey(user) {
+        const safeRole = normalizeStorageKeyPart(user?.role || "user");
+        const safeIdentity = normalizeStorageKeyPart(
+          user?.username || user?.email || user?.id || "guest"
+        );
+        return `uh_meeting_link_${safeRole}_${safeIdentity}`;
+    }
+
+    function getMeetingLinkFromStorage(user) {
+        const key = getMeetingLinkStorageKey(user);
+        try {
+            return localStorage.getItem(key) || "";
+        } catch (_error) {
+            return "";
+        }
+    }
+
+    function buildWeekDots() {
+        const dotsContainer = document.getElementById('weekDots');
+        dotsContainer.replaceChildren();
+        for (let i = 1; i <= 20; i++) {
+            const dot = document.createElement('div');
+            dot.id = `dot-${i}`;
+            dot.className = 'week-dot';
+            dot.style.height = '8px';
+            dot.style.background = 'var(--color-bg-secondary)';
+            dot.style.borderRadius = '4px';
+            dot.title = I18nUtils.t('student.weekPrefix') + i + I18nUtils.t('student.weekSuffix');
+            dotsContainer.appendChild(dot);
+        }
+    }
+
+    function statusBadge(status) {
+        if (status === 'taught') return '✓';
+        if (status === 'teacher_leave') return 'TL';
+        if (status === 'student_leave') return 'SL';
+        if (status === 'sick') return 'S';
+        return '-';
+    }
+
+    function renderWeekList() {
+        const weekList = document.getElementById('weekList');
+        weekList.replaceChildren();
+        const weeks = dashboardData?.progress?.weeks || [];
+        weeks.forEach((weekInfo) => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = `status-chip status-chip-button ${weekInfo.weekNumber === currentWeek ? 'info' : 'default'}`;
+            chip.style.cursor = 'pointer';
+            chip.style.minWidth = '80px';
+            chip.style.textAlign = 'center';
+            chip.style.background =
+                weekInfo.weekNumber === currentWeek
+                    ? 'var(--color-primary-light)'
+                    : 'var(--color-bg-secondary)';
+            chip.textContent = I18nUtils.t('student.weekPrefix') + weekInfo.weekNumber + I18nUtils.t('student.weekSuffix');
+            chip.appendChild(document.createElement('br'));
+            chip.appendChild(document.createTextNode(statusBadge(weekInfo.status)));
+            chip.onclick = async () => {
+                currentWeek = weekInfo.weekNumber;
+                await renderMain();
+                renderWeekList();
+            };
+            weekList.appendChild(chip);
+        });
+    }
+
+    function renderProgress() {
+        const weeks = dashboardData?.progress?.weeks || [];
+        let completedCount = 0;
+        weeks.forEach((week) => {
+            const dot = document.getElementById(`dot-${week.weekNumber}`);
+            if (!dot) return;
+            if (week.status === 'taught') {
+                dot.style.background = 'var(--color-primary)';
+                completedCount += 1;
+            } else if (week.status !== 'pending') {
+                dot.style.background = 'var(--status-warning)';
+            } else {
+                dot.style.background = 'var(--color-bg-secondary)';
+            }
+        });
+        const pct = Math.round((completedCount / 20) * 100);
+        document.getElementById('progressPercent').textContent = `${pct}%`;
+    }
+
+    async function renderMain() {
+        const result = await ApiClient.studentLesson(currentWeek);
+        currentLesson = result.lesson;
+        currentFeedback = result.feedback;
+
+        if (currentLesson?.status === 'taught' && currentLesson?.evidenceUrl) {
+            document.getElementById('evidenceImg').src = currentLesson.evidenceUrl;
+            document.getElementById('evidenceImg').style.display = 'block';
+            document.getElementById('placeholder').style.display = 'none';
+        } else {
+            document.getElementById('evidenceImg').style.display = 'none';
+            document.getElementById('placeholder').style.display = 'block';
+        }
+
+        if (currentLesson?.notes?.text) {
+            document.getElementById('teacherNotes').style.display = 'block';
+            document.getElementById('notesContent').textContent = currentLesson.notes.text;
+        } else {
+            document.getElementById('teacherNotes').style.display = 'none';
+        }
+
+        document.getElementById('feedback').value = currentFeedback?.text || '';
+        document.getElementById('feedbackRating').value = String(currentFeedback?.rating || 5);
+        document.getElementById('feedbackVisibility').value =
+            currentFeedback?.visibility || 'shared';
+    }
+
+    window.saveFeedback = async () => {
+        const submitButton = document.getElementById('saveFeedbackBtn');
+        const originalButtonText = submitButton.textContent;
+        submitButton.disabled = true;
+        submitButton.textContent = I18nUtils.t('common.submitting');
+        const text = document.getElementById('feedback').value.trim();
+        if (!text) {
+            submitButton.disabled = false;
+            submitButton.textContent = originalButtonText;
+            showToast(I18nUtils.t('student.feedbackEmpty'), 'warning');
+            return;
+        }
+        try {
+            const result = await ApiClient.saveFeedback(currentWeek, {
+                text,
+                rating: Number(document.getElementById('feedbackRating').value),
+                visibility: document.getElementById('feedbackVisibility').value
+            });
+            currentFeedback = result.feedback;
+            showToast(I18nUtils.t('student.feedbackSubmitted'), 'success');
+        } catch (error) {
+            showToast(error.message || I18nUtils.t('common.submitFailed'), 'error');
+        } finally {
+            submitButton.disabled = false;
+            submitButton.textContent = originalButtonText;
+        }
+    };
+
+    window.copyMeetingLink = async () => {
+        const link = getMeetingLinkFromStorage(currentUser || {});
+        if (!link) { showToast(I18nUtils.t('common.noMeetingLink'), 'warning'); return; }
+        await navigator.clipboard.writeText(link);
+        showToast(I18nUtils.t('common.linkCopied'), 'success');
+    };
+
+    function loadMeetingLink() {
+        const link = getMeetingLinkFromStorage(currentUser || {});
+        const display = document.getElementById('meetingLinkDisplay');
+        const openBtn = document.getElementById('meetingOpenBtn');
+        if (link) {
+            display.textContent = link;
+            display.removeAttribute('data-i18n');
+            openBtn.href = link;
+            openBtn.style.display = 'inline-block';
+        }
+    }
+
+    window.logout = async () => {
+        await ApiClient.logout().catch(() => null);
+        window.location.href = 'login.html';
+    };
+
+    async function boot() {
+        try {
+            const me = await ApiClient.me();
+            currentUser = me;
+            if (me.role !== 'student') {
+                window.location.href = 'login.html';
+                return;
+            }
+            buildWeekDots();
+            I18nUtils.applyTranslations();
+            loadMeetingLink();
+            dashboardData = await ApiClient.studentDashboard();
+            renderProgress();
+            renderWeekList();
+            await renderMain();
+        } catch (err) {
+            if (err?.status === 401 || err?.status === 403) {
+                window.location.href = 'login.html';
+            } else {
+                showToast(I18nUtils.t('common.networkError'), 'error');
+            }
+        }
+    }
+
+    boot();
+</script>
+</body>
+</html>

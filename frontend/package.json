@@ -1,0 +1,13 @@
+{
+  "name": "unique-hope-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "build": "vite build && rm -rf dist/js dist/images && mkdir -p dist/js dist/images && cp -R js/. dist/js/ && cp -R images/. dist/images/",
+    "preview": "vite preview --host 0.0.0.0 --port 4173"
+  },
+  "devDependencies": {
+    "vite": "^7.1.3"
+  }
+}

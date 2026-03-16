@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Unique Hope | Cultivating Potential</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Source+Serif+4:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="images/unique_hope_logo_cutout_keep_text.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="nav-wrapper">
+        <div class="container nav-content">
+            <a href="#" class="logo" data-i18n="nav.brand">
+                The Unique Hope
+            </a>
+            <div class="nav-links">
+                <a href="#how-it-works" class="nav-link" data-i18n="nav.mission">Mission</a>
+                <a href="#how-it-works" class="nav-link" data-i18n="nav.howItWorks">How it Works</a>
+                <a href="#stories" class="nav-link" data-i18n="nav.stories">Stories</a>
+                <a href="javascript:void(0)" class="nav-link" onclick="I18nUtils.toggleLang()" data-i18n="nav.switchLang">中文</a>
+                <a href="login.html" class="nav-btn" data-i18n="nav.memberLogin">Member Login</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-section" style="background: linear-gradient(rgba(253,253,253,0.85), rgba(253,253,253,0.9)), url('images/background.png') center/cover no-repeat;">
+        <div class="container hero-content">
+            <span class="hero-tag" data-i18n="hero.tag">uniquehope · Est. 2025</span>
+            <h1 class="display-1 hero-title"><span data-i18n="hero.title">Ignite Every Child's</span> <br><span class="text-gradient" data-i18n="hero.titleHighlight">Unique Hope</span></h1>
+            <p class="text-lead hero-desc" data-i18n="hero.description">
+                Free 1-on-1 online English courses for children aged 6-12 with rare diseases. We believe every child has unique potential, and we light up their future with love and patience.
+            </p>
+            <div class="hero-actions">
+                <a href="login.html" class="btn-primary" data-i18n="hero.ctaJoin">Join Us</a>
+                <a href="signup.html" class="btn-outline" data-i18n="nav.studentSignup">Student Signup</a>
+                <a href="#how-it-works" class="btn-outline" data-i18n="hero.ctaLearn" onclick="event.preventDefault(); document.getElementById('how-it-works').scrollIntoView({ behavior: 'smooth' });">Learn More</a>
+            </div>
+        </div>
+        <!-- Canvas injected by JS here -->
+    </section>
+
+    <!-- Mission / Features -->
+    <section id="how-it-works" class="section">
+        <div class="container">
+            <div style="text-align: center; margin-bottom: 80px;">
+                <h2 class="display-2" data-i18n="mission.title">Our Mission</h2>
+                <p class="text-lead" style="margin: 20px auto;" data-i18n="mission.subtitle">Through weekly 1-on-1 English lessons, we provide learning support for children with rare diseases, helping them learn through stories and interaction.</p>
+            </div>
+
+            <div class="grid grid-3">
+                <div class="feature-card">
+                    <div class="feature-icon">01</div>
+                    <h3 class="feature-title" data-i18n="mission.feature1Title">1-on-1 Personalized Teaching</h3>
+                    <p class="feature-text" data-i18n="mission.feature1Desc">Each volunteer teacher is matched with one student. Teaching content is customized based on the child's situation and progress, using Lexile English APP or designated materials.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">02</div>
+                    <h3 class="feature-title" data-i18n="mission.feature2Title">Flexible Interactive Courses</h3>
+                    <p class="feature-text" data-i18n="mission.feature2Desc">45-minute sessions once a week via Tencent Meeting. Incorporating game interactions, storytelling, phonics practice, and other innovative teaching methods.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">03</div>
+                    <h3 class="feature-title" data-i18n="mission.feature3Title">Official Certificate</h3>
+                    <p class="feature-text" data-i18n="mission.feature3Desc">Complete one term and meet assessment requirements to receive an official volunteer service certificate from Shanghai CORD Rare Disease Organization.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quote Section -->
+    <section id="stories" class="section" style="background-color: var(--color-bg-secondary);">
+        <div class="container">
+            <div class="glass-card" style="padding: 80px 40px; text-align: center; border-radius: 32px; max-width: 900px; margin: 0 auto;">
+                <p style="font-family: var(--font-display); font-size: 2rem; font-style: italic; color: var(--color-primary-dark); margin-bottom: 32px;">
+                    "<span data-i18n="quote.text">Every child is unique. They deserve to be seen, loved, and supported. This is not just an English lesson, it's a delivery of hope.</span>"
+                </p>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 16px;">
+                    <div style="width: 50px; height: 50px; background: var(--color-primary-light); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 700; color: var(--color-primary-dark);">希</div>
+                    <div style="text-align: left;">
+                        <div style="font-weight: 700; color: var(--color-text-main);" data-i18n="quote.author">uniquehope</div>
+                        <div style="font-size: 0.85rem; color: var(--color-text-secondary);" data-i18n="quote.role">Hangzhou · Rare Disease Charity Project</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer style="background: #0f172a; color: white; padding: 80px 0;">
+        <div class="container grid grid-2" style="margin-bottom: 60px;">
+            <div>
+                <h4 style="color: white; margin-bottom: 24px;">The Unique Hope</h4>
+                <p style="color: #94a3b8; max-width: 300px;" data-i18n="footer.description">uniquehope — Providing free personalized online English courses for children with rare diseases, lighting up hope for every child with love and patience.</p>
+            </div>
+            <div style="display: flex; gap: 40px; flex-wrap: wrap;">
+                <div>
+                    <h5 style="color: white; font-size: 1rem; margin-bottom: 16px;" data-i18n="footer.platformTitle">Platform</h5>
+                    <ul style="color: #94a3b8; display: flex; flex-direction: column; gap: 12px;">
+                        <li><a href="login.html" data-i18n="footer.studentEntry">For Students</a></li>
+                        <li><a href="login.html" data-i18n="footer.teacherEntry">For Teachers</a></li>
+                        <li><a href="signup.html" data-i18n="nav.studentSignup">Student Signup</a></li>
+                        <li><a href="#how-it-works" data-i18n="footer.curriculum">Curriculum</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h5 style="color: white; font-size: 1rem; margin-bottom: 16px;" data-i18n="footer.aboutTitle">About</h5>
+                    <ul style="color: #94a3b8; display: flex; flex-direction: column; gap: 12px;">
+                        <li><a href="#stories" data-i18n="footer.aboutUs">About Us</a></li>
+                        <li><a href="login.html" data-i18n="footer.joinVolunteer">Become a Volunteer</a></li>
+                        <li><a href="#stories" data-i18n="footer.contactUs">Contact Us</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="container" style="border-top: 1px solid #1e293b; padding-top: 32px; display: flex; justify-content: space-between; color: #64748b; font-size: 0.875rem;">
+            <div>&copy; <span id="copyrightYear">2025</span> <span data-i18n="footer.copyright">The Unique Hope uniquehope</span></div>
+            <div style="display: flex; gap: 24px;">
+                <a href="#" data-i18n="footer.privacy">Privacy Policy</a>
+                <a href="#" data-i18n="footer.terms">Terms of Use</a>
+            </div>
+        </div>
+    </footer>
+
+  <script type="module" src="js/runtime-config.js"></script>
+  <script type="module" src="js/i18n.js"></script>
+  <script type="module" src="js/creative-hope.js"></script>
+    <script>
+        // Navbar Scroll Effect
+        window.addEventListener('scroll', () => {
+            const nav = document.querySelector('.nav-wrapper');
+            if (window.scrollY > 50) {
+                nav.classList.add('scrolled');
+            } else {
+                nav.classList.remove('scrolled');
+            }
+        });
+
+        const copyrightYear = document.getElementById('copyrightYear');
+        if (copyrightYear) {
+            copyrightYear.textContent = String(new Date().getFullYear());
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            I18nUtils.applyTranslations();
+        }, { once: true });
+    </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: unique-hope-api
+    env: node
+    rootDir: backend
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health

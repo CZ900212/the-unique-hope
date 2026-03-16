@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teacher Portal - The Unique Hope</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Source+Serif+4:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="dashboard-container">
+  <div class="sidebar">
+    <a href="index.html" class="sidebar-brand" style="text-decoration:none;">The Unique Hope</a>
+    <div class="sidebar-menu">
+      <button type="button" class="sidebar-item active"><span></span> <span data-i18n="teacher.sidebarLessons">Weekly Lessons</span></button>
+      <button type="button" class="sidebar-item" onclick="document.getElementById('guidelinesModal').style.display='flex'"><span></span> <span data-i18n="teacher.sidebarGuidelines">Guidelines</span></button>
+      <button type="button" class="sidebar-item" onclick="document.getElementById('meetingLinkModal').style.display='flex'"><span></span> <span data-i18n="common.meetingLink">Meeting Link</span></button>
+      <button type="button" class="sidebar-item" onclick="I18nUtils.toggleLang()" style="margin-top: auto;"><span></span> <span data-i18n="nav.switchLang">中文</span></button>
+      <button type="button" class="sidebar-item" onclick="logout()" style="color: var(--status-error);"><span></span> <span data-i18n="nav.logout">Logout</span></button>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="dash-header">
+      <div>
+          <h2 class="display-3" id="weekTitle">Week 01</h2>
+          <p class="text-lead text-small" id="termDate">Sept 15 - Sept 21</p>
+      </div>
+      <div class="status-chip info" id="currentStatusBadge">Pending</div>
+    </div>
+
+    <div class="grid grid-2">
+        <!-- Lesson Card -->
+        <div class="dash-card">
+            <h3 style="font-size: 1.2rem; margin-bottom: 20px;" data-i18n="teacher.lessonEvidence">Lesson Evidence</h3>
+
+            <!-- Status Selector -->
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;">
+                <button class="btn-secondary" style="flex: 1; min-width: 80px;" onclick="setStatus('taught')" data-i18n="teacher.btnTaught">Taught</button>
+                <button class="btn-secondary" style="flex: 1; min-width: 80px;" onclick="setStatus('teacher_leave')" data-i18n="teacher.btnTeacherLeave">T-Leave</button>
+                <button class="btn-secondary" style="flex: 1; min-width: 80px;" onclick="setStatus('student_leave')" data-i18n="teacher.btnStudentLeave">S-Leave</button>
+                <button class="btn-secondary" style="flex: 1; min-width: 80px;" onclick="setStatus('sick')" data-i18n="teacher.btnSick">Sick</button>
+            </div>
+
+            <button type="button" id="uploadZone" aria-label="Upload lesson evidence" style="border: 2px dashed var(--color-bg-secondary); border-radius: var(--radius-md); height: 200px; width: 100%; display: flex; justify-content: center; align-items: center; cursor: pointer; position: relative; overflow: hidden; background: transparent;">
+                <div id="placeholder" style="text-align: center; color: var(--color-text-light);">
+                    <span style="font-size: 1.2rem;">+</span>
+                    <p data-i18n="teacher.uploadPrompt">Click to upload screenshot</p>
+                </div>
+                <img id="preview" alt="Lesson evidence preview" src="" style="position: absolute; top:0; left:0; width:100%; height:100%; object-fit: cover; display: none;">
+            </button>
+            <input type="file" id="fileInput" hidden accept="image/*">
+
+            <textarea id="notes" class="form-control" style="margin-top: 20px; min-height: 100px;" data-i18n-placeholder="teacher.notesPlaceholder" placeholder="Lesson notes..."></textarea>
+            <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
+                <span class="text-small" data-i18n="common.notesVisibility">Notes Visibility</span>
+                <select id="notesVisibility" class="form-control" style="max-width: 220px; height: 38px; padding: 6px 10px;">
+                    <option value="shared" data-i18n="common.shareWithStudent">Share with student</option>
+                    <option value="private" data-i18n="common.private">Private</option>
+                </select>
+            </div>
+            
+            <button class="btn-primary" id="saveBtn" style="width: 100%; margin-top: 20px;" onclick="save()" data-i18n="teacher.saveLesson">Save Lesson</button>
+        </div>
+
+        <!-- Info Card -->
+        <div class="flex-col gap-lg">
+            <div class="dash-card">
+                <h3 style="font-size: 1.2rem; margin-bottom: 20px;" data-i18n="teacher.myStudent">My Student</h3>
+                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+                    <div style="width: 48px; height: 48px; background: var(--color-primary-light); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--color-primary-dark);">
+                        S
+                    </div>
+                    <div>
+                        <div style="font-weight: 700;" id="sName">Loading...</div>
+                        <div class="text-small" id="sContact">Loading...</div>
+                    </div>
+                </div>
+                <div class="text-small" style="padding: 12px; background: var(--color-bg-secondary); border-radius: var(--radius-sm);">
+                    <strong data-i18n="teacher.latestFeedback">Latest Feedback:</strong> <span id="sFeedback" data-i18n="teacher.noFeedback">No feedback yet.</span>
+                </div>
+            </div>
+
+            <div class="dash-card" style="flex: 1;">
+                <h3 style="font-size: 1.2rem; margin-bottom: 20px;" data-i18n="teacher.termProgress">Certificate Progress</h3>
+                <div style="height: 12px; background: var(--color-bg-secondary); border-radius: 6px; overflow: hidden; margin-bottom: 8px;">
+                    <div id="progressBar" style="width: 0%; height: 100%; background: var(--color-primary); transition: width 0.5s ease;"></div>
+                </div>
+                <div class="flex-between text-small">
+                    <span id="progressText">0/20 Lessons</span>
+                    <span data-i18n="teacher.targetDate">Target: Dec 2025</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Week Selector -->
+    <div class="dash-card" style="margin-top: 20px;">
+        <h3 style="font-size: 1.2rem; margin-bottom: 20px;" data-i18n="teacher.weekSelector">Week Selector</h3>
+        <div style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 10px;" id="weekList"></div>
+    </div>
+
+  </div>
+</div>
+<div id="guidelinesModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 2000;">
+    <div class="glass-card" style="width: 600px; padding: 40px; background: white; max-height: 90vh; overflow-y: auto; border-radius: 38px;">
+        <h3 style="margin-bottom: 20px;" data-i18n="teacher.guidelinesTitle">Teaching Guidelines</h3>
+        <ul style="list-style: disc; padding-left: 20px; line-height: 1.8;">
+            <li data-i18n="teacher.guideline1">One 45-minute session per week.</li>
+            <li data-i18n="teacher.guideline2">Use Tencent Meeting for lessons.</li>
+            <li data-i18n="teacher.guideline3">Upload a screenshot after every lesson.</li>
+            <li data-i18n="teacher.guideline4">Max 3 absences allowed per term.</li>
+        </ul>
+        <button class="btn-secondary" style="margin-top: 20px; width: 100%;" onclick="document.getElementById('guidelinesModal').style.display='none'" data-i18n="teacher.closeBtn">Close</button>
+    </div>
+</div>
+
+<div id="meetingLinkModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 2000;">
+    <div class="glass-card" style="width: 500px; padding: 40px; background: white; border-radius: 38px !important; overflow: hidden;">
+        <h3 style="margin-bottom: 20px;" data-i18n="common.meetingLinkTitle">Tencent Meeting Link</h3>
+        <input type="url" id="meetingLinkInput" class="form-control" placeholder="https://meeting.tencent.com/..." style="margin-bottom: 16px;">
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-primary" style="flex: 1;" onclick="saveMeetingLink()" data-i18n="common.save">Save</button>
+            <button class="btn-secondary" onclick="copyMeetingLink()" data-i18n="common.copyLink">Copy Link</button>
+            <button class="btn-secondary" onclick="document.getElementById('meetingLinkModal').style.display='none'" data-i18n="common.close">Close</button>
+        </div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/demo-api.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/toast.js"></script>
+<script>
+    let currentWeek = 1;
+    let currentStatus = 'pending';
+    let selectedFile = null;
+    let selectedFileObjectUrl = null;
+    let lessonsByWeek = new Map();
+    let currentUser = null;
+
+    function normalizeStorageKeyPart(value) {
+        return String(value || "")
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9._-]/g, "_");
+    }
+
+    function getMeetingLinkStorageKey(user) {
+        const safeRole = normalizeStorageKeyPart(user?.role || "user");
+        const safeIdentity = normalizeStorageKeyPart(
+          user?.username || user?.email || user?.id || "guest"
+        );
+        return `uh_meeting_link_${safeRole}_${safeIdentity}`;
+    }
+
+    function saveMeetingLinkToStorage(user, link) {
+        const key = getMeetingLinkStorageKey(user);
+        try {
+            localStorage.setItem(key, link || "");
+        } catch (_error) {
+            // storage unavailable (e.g. private browsing restrictions)
+        }
+    }
+
+    function getMeetingLinkFromStorage(user) {
+        const key = getMeetingLinkStorageKey(user);
+        try {
+            return localStorage.getItem(key) || "";
+        } catch (_error) {
+            return "";
+        }
+    }
+
+    function releaseSelectedFilePreview() {
+        if (!selectedFileObjectUrl) return;
+        URL.revokeObjectURL(selectedFileObjectUrl);
+        selectedFileObjectUrl = null;
+    }
+
+    function statusClass(status) {
+        return status === 'taught' ? 'success' : status === 'pending' ? 'info' : 'warning';
+    }
+
+    function statusBadgeLabel(status) {
+        const map = {
+            taught: 'teacher.statusTaught',
+            pending: 'teacher.statusPending',
+            teacher_leave: 'teacher.statusTeacherLeave',
+            student_leave: 'teacher.statusStudentLeave',
+            sick: 'teacher.statusSick'
+        };
+        return I18nUtils.t(map[status] || 'teacher.statusPending');
+    }
+
+    function render() {
+        const lesson = lessonsByWeek.get(currentWeek) || {};
+        currentStatus = lesson.status || currentStatus || 'pending';
+        document.getElementById('weekTitle').textContent = I18nUtils.t('teacher.weekPrefix') + String(currentWeek).padStart(2, '0') + I18nUtils.t('teacher.weekSuffix');
+        document.getElementById('currentStatusBadge').textContent = statusBadgeLabel(currentStatus);
+        document.getElementById('currentStatusBadge').className = `status-chip ${statusClass(currentStatus)}`;
+        document.getElementById('notes').value = lesson.notes?.text || '';
+        document.getElementById('notesVisibility').value = lesson.notes?.visibility || 'shared';
+
+        if (selectedFile) {
+            if (!selectedFileObjectUrl) {
+                selectedFileObjectUrl = URL.createObjectURL(selectedFile);
+            }
+            document.getElementById('preview').src = selectedFileObjectUrl;
+            document.getElementById('preview').style.display = 'block';
+            document.getElementById('placeholder').style.display = 'none';
+        } else if (lesson.evidenceUrl) {
+            document.getElementById('preview').src = lesson.evidenceUrl;
+            document.getElementById('preview').style.display = 'block';
+            document.getElementById('placeholder').style.display = 'none';
+        } else {
+            document.getElementById('preview').style.display = 'none';
+            document.getElementById('placeholder').style.display = 'block';
+        }
+
+        let taughtCount = 0;
+        for (let week = 1; week <= 20; week++) {
+            if ((lessonsByWeek.get(week)?.status || 'pending') === 'taught') {
+                taughtCount += 1;
+            }
+        }
+        document.getElementById('progressBar').style.width = `${Math.round((taughtCount / 20) * 100)}%`;
+        document.getElementById('progressText').textContent = `${taughtCount}/20 ${I18nUtils.t('student.lessonsCount')}`;
+        renderWeekList();
+    }
+
+    function statusLabel(status) {
+        if (status === 'taught') return '✓';
+        if (status === 'teacher_leave') return 'TL';
+        if (status === 'student_leave') return 'SL';
+        if (status === 'sick') return 'S';
+        return '-';
+    }
+
+    function renderWeekList() {
+        const weekList = document.getElementById('weekList');
+        weekList.replaceChildren();
+        for (let i = 1; i <= 20; i++) {
+            const lesson = lessonsByWeek.get(i);
+            const status = lesson?.status || 'pending';
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'status-chip status-chip-button';
+            chip.style.cursor = 'pointer';
+            chip.style.minWidth = '80px';
+            chip.style.textAlign = 'center';
+            chip.style.background = i === currentWeek
+                ? 'var(--color-primary-light)'
+                : 'var(--color-bg-secondary)';
+            chip.textContent = I18nUtils.t('teacher.weekPrefix') + i + I18nUtils.t('teacher.weekSuffix');
+            chip.appendChild(document.createElement('br'));
+            chip.appendChild(document.createTextNode(statusLabel(status)));
+            chip.addEventListener('click', function () {
+                currentWeek = i;
+                releaseSelectedFilePreview();
+                selectedFile = null;
+                document.getElementById('fileInput').value = '';
+                render();
+                renderWeekList();
+            });
+            weekList.appendChild(chip);
+        }
+    }
+
+    window.setStatus = (status) => {
+        currentStatus = status;
+        document.getElementById('currentStatusBadge').textContent = statusBadgeLabel(status);
+        document.getElementById('currentStatusBadge').className = `status-chip ${statusClass(status)}`;
+    };
+    
+    document.getElementById('uploadZone').onclick = () => document.getElementById('fileInput').click();
+    document.getElementById('fileInput').onchange = (e) => {
+        const file = e.target.files[0] || null;
+        if (file) {
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                showToast(I18nUtils.t('common.unsupportedFileType'), 'error');
+                e.target.value = '';
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                showToast(I18nUtils.t('common.fileTooLarge'), 'error');
+                e.target.value = '';
+                return;
+            }
+        }
+        releaseSelectedFilePreview();
+        selectedFile = file;
+        render();
+    };
+
+    window.save = async () => {
+        const saveButton = document.getElementById('saveBtn');
+        const originalButtonText = saveButton.textContent;
+        saveButton.disabled = true;
+        saveButton.textContent = I18nUtils.t('common.saving');
+        try {
+            const saveResult = await ApiClient.updateLesson(currentWeek, {
+                status: currentStatus,
+                notesText: document.getElementById('notes').value.trim(),
+                notesVisibility: document.getElementById('notesVisibility').value
+            });
+
+            if (selectedFile) {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                const uploadResult = await ApiClient.uploadLessonEvidence(currentWeek, formData);
+                if (saveResult.lesson) {
+                    saveResult.lesson.evidenceUrl = uploadResult?.evidence?.signedUrl || null;
+                }
+            }
+
+            lessonsByWeek.set(currentWeek, saveResult.lesson || {});
+            releaseSelectedFilePreview();
+            selectedFile = null;
+            document.getElementById('fileInput').value = '';
+            showToast(I18nUtils.t('teacher.lessonSaved'), 'success');
+        } catch (error) {
+            showToast(error.message || I18nUtils.t('common.error'), 'error');
+        } finally {
+            saveButton.disabled = false;
+            saveButton.textContent = originalButtonText;
+        }
+        render();
+    };
+
+    window.logout = async () => {
+        await ApiClient.logout().catch(() => null);
+        window.location.href = 'login.html';
+    };
+
+    window.saveMeetingLink = () => {
+        const link = document.getElementById('meetingLinkInput').value.trim();
+        saveMeetingLinkToStorage(currentUser || {}, link);
+        showToast(I18nUtils.t('common.success'), 'success');
+    };
+
+    window.copyMeetingLink = async () => {
+        const link = document.getElementById('meetingLinkInput').value.trim();
+        if (!link) { showToast(I18nUtils.t('common.noMeetingLink'), 'warning'); return; }
+        await navigator.clipboard.writeText(link);
+        showToast(I18nUtils.t('common.linkCopied'), 'success');
+    };
+
+    async function boot() {
+        try {
+            const me = await ApiClient.me();
+            currentUser = me;
+            if (me.role !== 'teacher') {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            const dashboard = await ApiClient.teacherDashboard();
+            const student = dashboard.student;
+            if (student) {
+                document.getElementById('sName').textContent = student.name || 'N/A';
+                document.getElementById('sContact').textContent = student.contact || '';
+            } else {
+                document.getElementById('sName').textContent = I18nUtils.t('teacher.noStudent');
+                document.getElementById('sContact').textContent = '';
+            }
+
+            document.getElementById('sFeedback').textContent =
+                dashboard.latestSharedFeedback?.text || I18nUtils.t('teacher.noFeedback');
+
+            (dashboard.progress?.lessons || []).forEach((lesson) => {
+                const weekNumber = lesson.week_number ?? lesson.weekNumber;
+                if (weekNumber) {
+                    lessonsByWeek.set(weekNumber, lesson);
+                }
+            });
+            renderWeekList();
+            render();
+            I18nUtils.applyTranslations();
+            document.getElementById('meetingLinkInput').value = getMeetingLinkFromStorage(me);
+        } catch (err) {
+            if (err?.status === 401 || err?.status === 403) {
+                window.location.href = 'login.html';
+            } else {
+                showToast(I18nUtils.t('common.networkError'), 'error');
+            }
+        }
+    }
+
+    boot();
+    window.addEventListener('beforeunload', releaseSelectedFilePreview);
+</script>
+</body>
+</html>
