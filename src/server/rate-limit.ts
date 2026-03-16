@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { and, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt, lte, sql } from "drizzle-orm";
 
 import { db } from "~/server/db";
 import { requestRateLimits } from "~/server/db/schema";
@@ -67,10 +67,15 @@ export function hashRateLimitSubject(subject: string) {
 export async function consumeRateLimit(input: RateLimitInput): Promise<RateLimitResult> {
   const subjectHash = hashRateLimitSubject(input.subject);
   const now = Date.now();
+  const nowDate = new Date(now);
   const bucketStartMs = Math.floor(now / input.windowMs) * input.windowMs;
   const bucketStart = new Date(bucketStartMs);
   const expiresAt = new Date(bucketStartMs + input.windowMs);
   const key = `${input.action}:${subjectHash}:${bucketStartMs}`;
+
+  await db
+    .delete(requestRateLimits)
+    .where(lte(requestRateLimits.expiresAt, nowDate));
 
   const [row] = await db
     .insert(requestRateLimits)
