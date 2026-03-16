@@ -30,7 +30,26 @@ describe("enforcePublicSignupRateLimit", () => {
     expect(mocks.consumeRateLimit).toHaveBeenCalledWith({
       action: "signup:phone",
       limit: 2,
-      subject: "+15551234567",
+      subject: "15551234567",
+      windowMs: 60 * 60 * 1000,
+    });
+  });
+
+
+  it("canonicalizes plus formatting so equivalent phone inputs share a bucket", async () => {
+    await enforcePublicSignupRateLimit(new Headers(), "+1 555 123 4567");
+    await enforcePublicSignupRateLimit(new Headers(), "1(555)123-4567");
+
+    expect(mocks.consumeRateLimit).toHaveBeenNthCalledWith(1, {
+      action: "signup:phone",
+      limit: 2,
+      subject: "15551234567",
+      windowMs: 60 * 60 * 1000,
+    });
+    expect(mocks.consumeRateLimit).toHaveBeenNthCalledWith(2, {
+      action: "signup:phone",
+      limit: 2,
+      subject: "15551234567",
       windowMs: 60 * 60 * 1000,
     });
   });

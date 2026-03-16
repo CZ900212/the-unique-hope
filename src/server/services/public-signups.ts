@@ -5,7 +5,7 @@ import { consumeRateLimit, extractClientIp } from "~/server/rate-limit";
 const SIGNUP_ERROR_MESSAGE = "Too many signup submissions. Try again later.";
 
 function normalizeSignupPhone(phone: string) {
-  const compact = phone.trim().replaceAll(/\s+|\(|\)|-/g, "");
+  const compact = phone.trim().replaceAll(/[\s()+-]+/g, "");
   return compact.length > 0 ? compact : phone.trim();
 }
 
