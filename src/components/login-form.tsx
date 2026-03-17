@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { useI18n } from "~/components/locale-provider";
+import { getDisplayErrorMessage } from "~/lib/client-errors";
 import { readFormString } from "~/lib/forms";
 import { resolveSafeCallbackPath } from "~/lib/navigation";
 import { type Role } from "~/lib/domain";
@@ -61,10 +62,14 @@ export function LoginForm(props: LoginFormProps) {
 
           if (result?.error) {
             if (result.code === "rate_limited") {
-              setError("Too many sign in attempts. Try again in 15 minutes.");
+              setError(messages.login.rateLimited);
               return;
             }
-            setError(result.error === "CredentialsSignin" ? messages.login.invalid : result.error);
+            setError(
+              result.error === "CredentialsSignin"
+                ? messages.login.invalid
+                : getDisplayErrorMessage(result, messages.login.unavailable),
+            );
             return;
           }
 

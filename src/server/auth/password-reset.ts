@@ -46,6 +46,15 @@ export function hashPasswordResetToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 export function isPasswordResetEmailConfigured() {
   return Boolean(env.RESEND_API_KEY && env.PASSWORD_RESET_FROM_EMAIL);
 }
@@ -141,38 +150,51 @@ async function persistPasswordResetToken(userId: string) {
   };
 }
 
+export function createPasswordResetEmailContent(input: {
+  email: string;
+  name: string;
+  resetUrl: string;
+}) {
+  const escapedAppName = escapeHtml(env.NEXT_PUBLIC_APP_NAME);
+  const escapedName = escapeHtml(input.name);
+  const escapedResetUrl = escapeHtml(input.resetUrl);
+
+  return {
+    from: env.PASSWORD_RESET_FROM_EMAIL,
+    to: input.email,
+    subject: `Reset your ${env.NEXT_PUBLIC_APP_NAME} password`,
+    text: [
+      `Hello ${input.name},`,
+      "",
+      `Use the link below to reset your ${env.NEXT_PUBLIC_APP_NAME} password:`,
+      input.resetUrl,
+      "",
+      `This link expires in ${env.PASSWORD_RESET_TOKEN_TTL_MINUTES} minutes.`,
+      "If you did not request this reset, you can ignore this email.",
+    ].join("\n"),
+    html: [
+      `<p>Hello ${escapedName},</p>`,
+      `<p>Use the link below to reset your ${escapedAppName} password.</p>`,
+      `<p><a href="${escapedResetUrl}">${escapedResetUrl}</a></p>`,
+      `<p>This link expires in ${env.PASSWORD_RESET_TOKEN_TTL_MINUTES} minutes.</p>`,
+      "<p>If you did not request this reset, you can ignore this email.</p>",
+    ].join(""),
+  };
+}
+
 async function sendPasswordResetEmail(input: {
   email: string;
   name: string;
   resetUrl: string;
 }) {
+  const payload = createPasswordResetEmailContent(input);
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.RESEND_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      from: env.PASSWORD_RESET_FROM_EMAIL,
-      to: input.email,
-      subject: `Reset your ${env.NEXT_PUBLIC_APP_NAME} password`,
-      text: [
-        `Hello ${input.name},`,
-        "",
-        `Use the link below to reset your ${env.NEXT_PUBLIC_APP_NAME} password:`,
-        input.resetUrl,
-        "",
-        `This link expires in ${env.PASSWORD_RESET_TOKEN_TTL_MINUTES} minutes.`,
-        "If you did not request this reset, you can ignore this email.",
-      ].join("\n"),
-      html: [
-        `<p>Hello ${input.name},</p>`,
-        `<p>Use the link below to reset your ${env.NEXT_PUBLIC_APP_NAME} password.</p>`,
-        `<p><a href="${input.resetUrl}">${input.resetUrl}</a></p>`,
-        `<p>This link expires in ${env.PASSWORD_RESET_TOKEN_TTL_MINUTES} minutes.</p>`,
-        "<p>If you did not request this reset, you can ignore this email.</p>",
-      ].join(""),
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -200,6 +222,10 @@ export async function requestPasswordReset(input: PasswordResetRequestInput) {
     return { status: "queued" as const };
   }
 
+  if (isManagedLocalEmail(account.email)) {
+    return { status: "suppressed" as const };
+  }
+
   if (!emailConfigured) {
     const preview = await persistPasswordResetToken(account.userId);
     console.info(`[password-reset] preview link for ${account.email}: ${preview.resetUrl}`);
@@ -207,10 +233,6 @@ export async function requestPasswordReset(input: PasswordResetRequestInput) {
     return {
       status: "preview" as const,
     };
-  }
-
-  if (isManagedLocalEmail(account.email)) {
-    return { status: "unavailable" as const };
   }
 
   const preview = await persistPasswordResetToken(account.userId);

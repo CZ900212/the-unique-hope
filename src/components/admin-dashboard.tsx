@@ -4,10 +4,7 @@ import { useDeferredValue, useState, useTransition } from "react";
 
 import { AppDialog } from "~/components/app-dialog";
 import { useI18n } from "~/components/locale-provider";
-import {
-  filterAdminPairings,
-  paginateAdminPairings,
-} from "~/lib/admin-pairings";
+import { getDisplayErrorMessage } from "~/lib/client-errors";
 import { readFormString } from "~/lib/forms";
 import { type Messages } from "~/lib/i18n";
 import { api } from "~/trpc/react";
@@ -34,11 +31,20 @@ export function AdminDashboard() {
   const [, startTransition] = useTransition();
   const deferredSearch = useDeferredValue(search);
 
-  const progressReportQuery = api.admin.progressReport.useQuery();
+  const pairingsQuery = api.admin.listPairings.useQuery({
+    page: pairingPage,
+    pageSize: PAIRING_PAGE_SIZE,
+    search: deferredSearch,
+  });
+  const progressReportQuery = api.admin.progressReport.useQuery(undefined, {
+    enabled: activeView === "progress",
+  });
   const signupsQuery = api.admin.listStudentSignups.useQuery({
     page: signupPage,
     pageSize: 20,
     status: signupFilter,
+  }, {
+    enabled: activeView === "signups",
   });
 
   const createPairing = api.admin.createPairing.useMutation({
@@ -46,19 +52,25 @@ export function AdminDashboard() {
       setPairingModalOpen(false);
       setError("");
       await Promise.all([
+        utils.admin.listPairings.invalidate(),
         utils.admin.progressReport.invalidate(),
         utils.admin.listStudentSignups.invalidate(),
       ]);
     },
-    onError: (mutationError) => setError(mutationError.message),
+    onError: (mutationError) =>
+      setError(getDisplayErrorMessage(mutationError, messages.admin.createPairingError)),
   });
 
   const deletePairing = api.admin.deletePairing.useMutation({
     onSuccess: async () => {
       setError("");
-      await utils.admin.progressReport.invalidate();
+      await Promise.all([
+        utils.admin.listPairings.invalidate(),
+        utils.admin.progressReport.invalidate(),
+      ]);
     },
-    onError: (mutationError) => setError(mutationError.message),
+    onError: (mutationError) =>
+      setError(getDisplayErrorMessage(mutationError, messages.admin.deletePairingError)),
   });
 
   const reviewSignup = api.admin.reviewStudentSignup.useMutation({
@@ -67,18 +79,30 @@ export function AdminDashboard() {
       setRejectReason("");
       await utils.admin.listStudentSignups.invalidate();
     },
-    onError: (mutationError) => setError(mutationError.message),
+    onError: (mutationError) =>
+      setError(getDisplayErrorMessage(mutationError, messages.admin.reviewError)),
   });
 
+  const visiblePairings = pairingsQuery.data?.pairings ?? [];
+  const currentPairingPage = pairingsQuery.data?.pagination.page ?? pairingPage;
+  const pairingTotalPages = pairingsQuery.data?.pagination.totalPages ?? 1;
   const progressRows = progressReportQuery.data?.pairings ?? [];
-  const filteredPairings = filterAdminPairings(progressRows, deferredSearch);
-  const {
-    currentPage: currentPairingPage,
-    pageItems: visiblePairings,
-    totalPages: pairingTotalPages,
-  } = paginateAdminPairings(filteredPairings, pairingPage, PAIRING_PAGE_SIZE);
-  const isLoading = progressReportQuery.isLoading || signupsQuery.isLoading;
-  const loadError = progressReportQuery.error ?? signupsQuery.error ?? null;
+  const isLoading =
+    activeView === "pairings"
+      ? pairingsQuery.isLoading
+      : activeView === "progress"
+        ? progressReportQuery.isLoading
+        : signupsQuery.isLoading;
+  const loadError =
+    activeView === "pairings"
+      ? pairingsQuery.error
+      : activeView === "progress"
+        ? progressReportQuery.error
+        : signupsQuery.error;
+  const totalPairings =
+    pairingsQuery.data?.pagination.overallTotal ??
+    progressReportQuery.data?.totalPairings ??
+    0;
 
   function exportCsv() {
     const rows = [
@@ -113,7 +137,7 @@ export function AdminDashboard() {
     <PortalShell
       title={messages.admin.title}
       subtitle={messages.admin.subtitle}
-      badge={`${progressReportQuery.data?.totalPairings ?? 0} ${messages.admin.activePairings}`}
+      badge={`${totalPairings} ${messages.admin.activePairings}`}
       navItems={[
         {
           label: messages.admin.pairings,
@@ -228,7 +252,7 @@ export function AdminDashboard() {
               </tbody>
             </table>
 
-            {!filteredPairings.length ? (
+            {!visiblePairings.length ? (
               <div className="px-6 py-12 text-center text-sm font-medium text-[var(--color-text-secondary)]">
                 {messages.admin.noPairings}
               </div>

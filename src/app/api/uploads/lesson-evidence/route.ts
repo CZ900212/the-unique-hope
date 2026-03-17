@@ -9,28 +9,30 @@ import {
   inferFileExtension,
   lessonUpdateSchema,
 } from "~/lib/domain";
+import { getMessages, type Locale } from "~/lib/i18n";
 import { auth } from "~/server/auth";
 import { loadActiveUserSession } from "~/server/auth/active-session";
 import {
   buildProtectedLessonEvidenceUrl,
   getBlobReadWriteToken,
 } from "~/server/lesson-evidence";
+import { getRequestLocale } from "~/server/locale";
 import { getPairingForTeacher } from "~/server/services/pairings";
 import {
   findTeacherLesson,
   upsertTeacherLessonRecord,
 } from "~/server/services/teacher-lessons";
 
-const GENERIC_UPLOAD_ERROR_MESSAGE = "Unable to upload lesson evidence right now.";
-
 export async function POST(request: Request) {
+  const locale = getRequestLocale(request.headers);
+  const messages = getMessages(locale);
   const session = await loadActiveUserSession(await auth());
   if (!session?.user || session.profile.role !== "teacher") {
     return NextResponse.json(
       {
         error: {
           code: "FORBIDDEN",
-          message: "Teacher authentication required",
+          message: messages.errors.teacherAuthRequired,
         },
       },
       { status: 403 },
@@ -50,7 +52,7 @@ export async function POST(request: Request) {
       {
         error: {
           code: "BAD_LESSON_INPUT",
-          message: "Lesson update payload is invalid",
+          message: messages.errors.lessonUpdateInvalid,
         },
       },
       { status: 400 },
@@ -64,11 +66,11 @@ export async function POST(request: Request) {
   } | null = null;
 
   try {
-    const { pairing } = await getPairingForTeacher(session.user.id);
+    const { pairing } = await getPairingForTeacher(session.user.id, locale);
     const existing = await findTeacherLesson(pairing.id, parsedLesson.data.week);
     uploadResult =
       file instanceof File
-        ? await uploadEvidenceFile(file, pairing.id, parsedLesson.data.week)
+        ? await uploadEvidenceFile(file, pairing.id, parsedLesson.data.week, locale)
         : null;
     const lesson = await upsertTeacherLessonRecord({
       pairingId: pairing.id,
@@ -147,7 +149,7 @@ export async function POST(request: Request) {
               ? error.message
               : error instanceof LessonUploadError
                 ? error.message
-                : GENERIC_UPLOAD_ERROR_MESSAGE,
+                : messages.errors.uploadFailed,
         },
       },
       {
@@ -162,12 +164,18 @@ export async function POST(request: Request) {
   }
 }
 
-async function uploadEvidenceFile(file: File, pairingId: string, week: number) {
+async function uploadEvidenceFile(
+  file: File,
+  pairingId: string,
+  week: number,
+  locale: Locale,
+) {
+  const messages = getMessages(locale);
   const blobToken = getBlobReadWriteToken();
   if (!blobToken) {
     throw new LessonUploadError(
       "BLOB_NOT_CONFIGURED",
-      "Upload storage is not configured",
+      messages.errors.uploadStorageNotConfigured,
       503,
     );
   }
@@ -176,24 +184,28 @@ async function uploadEvidenceFile(file: File, pairingId: string, week: number) {
   if (file.size > maxUploadBytes) {
     throw new LessonUploadError(
       "FILE_TOO_LARGE",
-      `file must be <= ${env.MAX_UPLOAD_MB}MB`,
+      messages.errors.uploadFileTooLarge(env.MAX_UPLOAD_MB),
       400,
     );
   }
 
   if (!ALLOWED_IMAGE_MIME_TYPES.has(file.type)) {
-    throw new LessonUploadError("BAD_FILE_TYPE", "Unsupported file type", 400);
+    throw new LessonUploadError("BAD_FILE_TYPE", messages.errors.uploadBadFileType, 400);
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const detected = await fileTypeFromBuffer(buffer);
   if (!detected || !ALLOWED_IMAGE_MIME_TYPES.has(detected.mime) || detected.mime !== file.type) {
-    throw new LessonUploadError("BAD_FILE_SIGNATURE", "File MIME mismatch", 400);
+    throw new LessonUploadError(
+      "BAD_FILE_SIGNATURE",
+      messages.errors.uploadBadFileSignature,
+      400,
+    );
   }
 
   const extension = inferFileExtension(detected.mime);
   if (!extension) {
-    throw new LessonUploadError("BAD_FILE_TYPE", "Unsupported file type", 400);
+    throw new LessonUploadError("BAD_FILE_TYPE", messages.errors.uploadBadFileType, 400);
   }
 
   const pathname = `lessons/${pairingId}/week-${week}/${crypto.randomUUID()}.${extension}`;

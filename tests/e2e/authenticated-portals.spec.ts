@@ -74,6 +74,7 @@ test("teacher can sign in and see the seeded student dashboard data", async ({ p
   await expect(page.getByRole("heading", { name: "Week 01" })).toBeVisible();
   await expect(page.getByText("Demo Student")).toBeVisible();
   await expect(page.getByRole("button", { name: "Keep this safe" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Switch to Chinese" })).toBeVisible();
 
   await page.getByRole("button", { name: "Meeting Link" }).click();
   const meetingDialog = page.getByRole("dialog", { name: "Your Space" });
@@ -110,4 +111,7 @@ test("student can sign in and reach the learning path dashboard", async ({ page 
   await expect(page.getByRole("heading", { name: "Your story so far" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "This Week's Activity" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Keep these thoughts" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Switch to Chinese" }).click();
+  await expect(page.getByRole("heading", { name: "我的学习路径" })).toBeVisible();
 });

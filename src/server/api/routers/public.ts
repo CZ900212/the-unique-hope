@@ -1,29 +1,13 @@
-import { TRPCError } from "@trpc/server";
-
 import { studentSignups } from "~/server/db/schema";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { studentSignupSchema } from "~/lib/domain";
-import { consumeRateLimit, extractClientIp } from "~/server/rate-limit";
+import { enforcePublicSignupRateLimit } from "~/server/services/public-signups";
 
 export const publicRouter = createTRPCRouter({
   createStudentSignup: publicProcedure
     .input(studentSignupSchema)
     .mutation(async ({ ctx, input }) => {
-      const clientIp = extractClientIp(ctx.headers);
-      const limit = clientIp
-        ? await consumeRateLimit({
-            action: "signup:ip",
-            limit: 5,
-            subject: clientIp,
-            windowMs: 60 * 60 * 1000,
-          })
-        : null;
-      if (limit && !limit.allowed) {
-        throw new TRPCError({
-          code: "TOO_MANY_REQUESTS",
-          message: "Too many signup submissions. Try again later.",
-        });
-      }
+      await enforcePublicSignupRateLimit(ctx.headers, input.phone, ctx.locale);
 
       const [signup] = await ctx.db
         .insert(studentSignups)

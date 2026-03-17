@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { forgotPasswordSchema } from "~/lib/domain";
+import { getMessages } from "~/lib/i18n";
 import { requestPasswordReset } from "~/server/auth/password-reset";
+import { getRequestLocale } from "~/server/locale";
 import { consumeRateLimit, extractClientIp } from "~/server/rate-limit";
 
-const ADMIN_RESET_MESSAGE =
-  "Admin password resets are handled internally. Contact the system owner.";
-
 export async function POST(request: Request) {
+  const messages = getMessages(getRequestLocale(request.headers));
   let body: unknown;
 
   try {
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
       {
         error: {
           code: "BAD_JSON",
-          message: "Request body must be valid JSON.",
+          message: messages.errors.badJson,
         },
       },
       { status: 400 },
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       {
         error: {
           code: "BAD_REQUEST",
-          message: "Identifier and role are required.",
+          message: messages.errors.passwordResetBadRequest,
         },
       },
       { status: 400 },
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
       {
         error: {
           code: "PASSWORD_RESET_DISABLED",
-          message: ADMIN_RESET_MESSAGE,
+          message: messages.errors.adminPasswordResetDisabled,
         },
       },
       { status: 403 },
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
       {
         error: {
           code: "TOO_MANY_REQUESTS",
-          message: "Too many password reset requests. Try again later.",
+          message: messages.errors.passwordResetTooManyRequests,
         },
       },
       {
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
         {
           error: {
             code: "PASSWORD_RESET_DISABLED",
-            message: ADMIN_RESET_MESSAGE,
+            message: messages.errors.adminPasswordResetDisabled,
           },
         },
         { status: 403 },
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
         {
           error: {
             code: "PASSWORD_RESET_UNAVAILABLE",
-            message: "Password reset is not available for this account right now. Contact an admin.",
+            message: messages.errors.passwordResetUnavailable,
           },
         },
         { status: 503 },
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
       {
         error: {
           code: "INTERNAL_SERVER_ERROR",
-          message: "Unable to start password reset right now.",
+          message: messages.resetRequest.requestError,
         },
       },
       { status: 500 },

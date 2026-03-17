@@ -3,8 +3,10 @@ import { eq } from "drizzle-orm";
 
 import { db } from "~/server/db";
 import { pairings, profiles } from "~/server/db/schema";
+import { DEFAULT_LOCALE, getMessages, type Locale } from "~/lib/i18n";
 
-async function getProfileByUserId(userId: string) {
+async function getProfileByUserId(userId: string, locale: Locale) {
+  const messages = getMessages(locale);
   const profile = await db.query.profiles.findFirst({
     where: eq(profiles.userId, userId),
   });
@@ -12,15 +14,19 @@ async function getProfileByUserId(userId: string) {
   if (!profile) {
     throw new TRPCError({
       code: "NOT_FOUND",
-      message: "Profile not found for current user",
+      message: messages.errors.profileNotFound,
     });
   }
 
   return profile;
 }
 
-export async function getPairingForTeacher(userId: string) {
-  const profile = await getProfileByUserId(userId);
+export async function getPairingForTeacher(
+  userId: string,
+  locale: Locale = DEFAULT_LOCALE,
+) {
+  const messages = getMessages(locale);
+  const profile = await getProfileByUserId(userId, locale);
 
   const pairing = await db.query.pairings.findFirst({
     where: eq(pairings.teacherProfileId, profile.id),
@@ -41,15 +47,19 @@ export async function getPairingForTeacher(userId: string) {
   if (!pairing) {
     throw new TRPCError({
       code: "NOT_FOUND",
-      message: "Teacher has no assigned student",
+      message: messages.errors.teacherNoAssignedStudent,
     });
   }
 
   return { pairing, profile };
 }
 
-export async function getPairingForStudent(userId: string) {
-  const profile = await getProfileByUserId(userId);
+export async function getPairingForStudent(
+  userId: string,
+  locale: Locale = DEFAULT_LOCALE,
+) {
+  const messages = getMessages(locale);
+  const profile = await getProfileByUserId(userId, locale);
 
   const pairing = await db.query.pairings.findFirst({
     where: eq(pairings.studentProfileId, profile.id),
@@ -66,7 +76,7 @@ export async function getPairingForStudent(userId: string) {
   if (!pairing) {
     throw new TRPCError({
       code: "NOT_FOUND",
-      message: "Student has no assigned teacher",
+      message: messages.errors.studentNoAssignedTeacher,
     });
   }
 

@@ -1,21 +1,20 @@
 import { redirect } from "next/navigation";
 
+import { AuthPageShell } from "~/components/auth-page-shell";
 import { PasswordResetRequestForm } from "~/components/password-reset-request-form";
 import { getActiveUserSession } from "~/server/auth/active-session";
+import { getServerLocale } from "~/server/locale";
 
 export default async function ForgotPasswordPage() {
+  const locale = await getServerLocale();
   const active = await getActiveUserSession();
   if (active?.profile.role) {
     redirect(`/${active.profile.role}`);
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[var(--color-bg-main)] px-6 py-12">
-      <div className="w-full max-w-md">
-        <div className="glass-card rounded-[var(--radius-lg)] p-8">
-          <PasswordResetRequestForm />
-        </div>
-      </div>
-    </main>
+    <AuthPageShell locale={locale} variant="plain">
+      <PasswordResetRequestForm />
+    </AuthPageShell>
   );
 }

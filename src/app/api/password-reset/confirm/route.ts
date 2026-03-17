@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { resetPasswordSchema } from "~/lib/domain";
+import { getMessages } from "~/lib/i18n";
 import { resetPasswordWithToken } from "~/server/auth/password-reset";
+import { getRequestLocale } from "~/server/locale";
 
 export async function POST(request: Request) {
+  const messages = getMessages(getRequestLocale(request.headers));
   let body: unknown;
 
   try {
@@ -13,7 +16,7 @@ export async function POST(request: Request) {
       {
         error: {
           code: "BAD_JSON",
-          message: "Request body must be valid JSON.",
+          message: messages.errors.badJson,
         },
       },
       { status: 400 },
@@ -22,13 +25,11 @@ export async function POST(request: Request) {
 
   const parsed = resetPasswordSchema.safeParse(body);
   if (!parsed.success) {
-    const firstIssue = parsed.error.issues[0];
-
     return NextResponse.json(
       {
         error: {
           code: "BAD_REQUEST",
-          message: firstIssue?.message ?? "Token and matching passwords are required.",
+          message: messages.errors.resetPasswordBadRequest,
         },
       },
       { status: 400 },
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
         {
           error: {
             code: "INVALID_TOKEN",
-            message: "This reset link is invalid or has expired.",
+            message: messages.errors.passwordResetInvalidToken,
           },
         },
         { status: 400 },
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      message: "Password updated successfully.",
+      message: messages.login.resetSuccess,
     });
   } catch (error) {
     console.error("[password-reset:confirm]", error);
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
       {
         error: {
           code: "INTERNAL_SERVER_ERROR",
-          message: "Unable to reset password right now.",
+          message: messages.resetConfirm.resetError,
         },
       },
       { status: 500 },

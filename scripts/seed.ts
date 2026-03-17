@@ -1,11 +1,11 @@
 import { hash } from "bcryptjs";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { env } from "~/env";
 import { toCanonicalEmail } from "~/lib/domain";
 import { resolveSeedPolicy } from "~/lib/seed-policy";
 import { conn, db } from "~/server/db";
-import { pairings, profiles, userCredentials, users } from "~/server/db/schema";
+import { pairings, profiles, sessions, userCredentials, users } from "~/server/db/schema";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -50,7 +50,7 @@ async function ensureUserWithProfile(input: {
     if (existingUser.credential && input.resetExistingPassword) {
       await db
         .update(userCredentials)
-        .set({ passwordHash })
+        .set({ passwordHash, updatedAt: new Date() })
         .where(eq(userCredentials.userId, existingUser.id));
       passwordUpdated = true;
     } else if (!existingUser.credential) {
@@ -59,6 +59,16 @@ async function ensureUserWithProfile(input: {
         passwordHash,
       });
       passwordUpdated = true;
+    }
+
+    if (passwordUpdated) {
+      await db
+        .update(users)
+        .set({
+          authVersion: sql`${users.authVersion} + 1`,
+        })
+        .where(eq(users.id, existingUser.id));
+      await db.delete(sessions).where(eq(sessions.userId, existingUser.id));
     }
 
     const refreshedProfile = await db.query.profiles.findFirst({

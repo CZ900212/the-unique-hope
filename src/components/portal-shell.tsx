@@ -4,6 +4,7 @@ import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { signOut } from "next-auth/react";
 
+import { LocaleSwitcher } from "~/components/locale-switcher";
 import { useI18n } from "~/components/locale-provider";
 
 type PortalItem = {
@@ -21,7 +22,7 @@ export function PortalShell(props: {
   subtitle: string;
   title: string;
 }) {
-  const { messages } = useI18n();
+  const { locale, messages } = useI18n();
 
   return (
     <main className="min-h-screen bg-[var(--color-bg-secondary)] px-4 py-6 md:px-6">
@@ -90,6 +91,7 @@ export function PortalShell(props: {
               </h1>
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              <LocaleSwitcher locale={locale} />
               {props.badge ? (
                 <span className="rounded-full bg-[linear-gradient(135deg,var(--color-primary-light),var(--color-primary-50))] px-5 py-2.5 text-sm font-bold text-[var(--color-primary-dark)]">
                   {props.badge}

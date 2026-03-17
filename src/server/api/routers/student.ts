@@ -7,6 +7,7 @@ import {
   TOTAL_WEEKS,
   weekSchema,
 } from "~/lib/domain";
+import { getMessages } from "~/lib/i18n";
 import { createTRPCRouter, roleProtectedProcedure } from "~/server/api/trpc";
 import { buildProtectedLessonEvidenceUrl } from "~/server/lesson-evidence";
 import { isStudentFeedbackAllowed } from "~/server/services/lesson-feedback";
@@ -16,7 +17,7 @@ const studentProcedure = roleProtectedProcedure("student");
 
 export const studentRouter = createTRPCRouter({
   dashboard: studentProcedure.query(async ({ ctx }) => {
-    const { pairing, profile } = await getPairingForStudent(ctx.session.user.id);
+    const { pairing, profile } = await getPairingForStudent(ctx.session.user.id, ctx.locale);
     const byWeek = new Map(pairing.lessons.map((lesson) => [lesson.weekNumber, lesson]));
     const weeks = Array.from({ length: TOTAL_WEEKS }, (_, index) => {
       const weekNumber = index + 1;
@@ -47,7 +48,7 @@ export const studentRouter = createTRPCRouter({
   lesson: studentProcedure
     .input(weekSchema)
     .query(async ({ ctx, input }) => {
-      const { pairing, profile } = await getPairingForStudent(ctx.session.user.id);
+      const { pairing, profile } = await getPairingForStudent(ctx.session.user.id, ctx.locale);
 
       const lesson = await ctx.db.query.lessons.findFirst({
         where: and(eq(lessons.pairingId, pairing.id), eq(lessons.weekNumber, input)),
@@ -96,7 +97,8 @@ export const studentRouter = createTRPCRouter({
   saveFeedback: studentProcedure
     .input(feedbackUpsertSchema)
     .mutation(async ({ ctx, input }) => {
-      const { pairing, profile } = await getPairingForStudent(ctx.session.user.id);
+      const messages = getMessages(ctx.locale);
+      const { pairing, profile } = await getPairingForStudent(ctx.session.user.id, ctx.locale);
       const lesson = await ctx.db.query.lessons.findFirst({
         where: and(eq(lessons.pairingId, pairing.id), eq(lessons.weekNumber, input.week)),
       });
@@ -104,7 +106,7 @@ export const studentRouter = createTRPCRouter({
       if (!isStudentFeedbackAllowed(lesson?.status)) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Feedback is available only after a taught lesson.",
+          message: messages.errors.feedbackRequiresTaughtLesson,
         });
       }
 

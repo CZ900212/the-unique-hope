@@ -11,7 +11,7 @@ const teacherProcedure = roleProtectedProcedure("teacher");
 
 export const teacherRouter = createTRPCRouter({
   dashboard: teacherProcedure.query(async ({ ctx }) => {
-    const { pairing, profile } = await getPairingForTeacher(ctx.session.user.id);
+    const { pairing, profile } = await getPairingForTeacher(ctx.session.user.id, ctx.locale);
     const latestSharedFeedback = findLatestTeacherVisibleFeedback(
       pairing.feedback,
       pairing.lessons,
@@ -59,7 +59,7 @@ export const teacherRouter = createTRPCRouter({
   updateMeetingLink: teacherProcedure
     .input(updateMeetingLinkSchema)
     .mutation(async ({ ctx, input }) => {
-      const { pairing } = await getPairingForTeacher(ctx.session.user.id);
+      const { pairing } = await getPairingForTeacher(ctx.session.user.id, ctx.locale);
       const [updatedPairing] = await ctx.db
         .update(pairings)
         .set({

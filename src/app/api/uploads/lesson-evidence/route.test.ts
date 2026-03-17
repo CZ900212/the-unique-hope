@@ -3,9 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
-  buildProtectedLessonEvidenceUrl: vi.fn((lessonId: string, evidenceKey: string | null) =>
-    evidenceKey ? `/api/uploads/lesson-evidence/${lessonId}` : null,
-  ),
+  buildProtectedLessonEvidenceUrl: vi.fn(),
   del: vi.fn(),
   fileTypeFromBuffer: vi.fn(),
   findTeacherLesson: vi.fn(),
@@ -82,6 +80,12 @@ describe("lesson evidence upload route", () => {
       evidenceKey: "lessons/pairing-1/week-4/old.png",
     });
     mocks.getBlobReadWriteToken.mockReturnValue("blob-token");
+    mocks.buildProtectedLessonEvidenceUrl.mockImplementation(
+      (lessonId: string, evidenceKey: string | null) =>
+        evidenceKey && mocks.getBlobReadWriteToken()
+          ? `/api/uploads/lesson-evidence/${lessonId}`
+          : null,
+    );
     mocks.fileTypeFromBuffer.mockResolvedValue({
       ext: "png",
       mime: "image/png",
@@ -119,7 +123,7 @@ describe("lesson evidence upload route", () => {
     expect(payload.lesson.status).toBe("taught");
     expect(payload.evidence).toEqual({
       mime: "image/png",
-      url: "/api/uploads/lesson-evidence/lesson-1",
+      url: null,
     });
     expect(mocks.put).not.toHaveBeenCalled();
     expect(mocks.upsertTeacherLessonRecord).toHaveBeenCalledWith(

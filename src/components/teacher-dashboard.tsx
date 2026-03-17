@@ -4,6 +4,7 @@ import { useEffect, useId, useState, useTransition } from "react";
 
 import { AppDialog } from "~/components/app-dialog";
 import { useI18n } from "~/components/locale-provider";
+import { getDisplayErrorMessage } from "~/lib/client-errors";
 import { type Messages } from "~/lib/i18n";
 import { PortalShell } from "~/components/portal-shell";
 import { type LessonStatus, type Visibility } from "~/lib/domain";
@@ -97,9 +98,7 @@ export function TeacherDashboard() {
         await utils.teacher.dashboard.invalidate();
         setMessage(messages.teacher.lessonSaved);
       } catch (error) {
-        setMessage(
-          error instanceof Error ? error.message : messages.teacher.lessonSaveError,
-        );
+        setMessage(getDisplayErrorMessage(error, messages.teacher.lessonSaveError));
       }
     });
   }
@@ -114,9 +113,7 @@ export function TeacherDashboard() {
         });
         setMeetingOpen(false);
       } catch (error) {
-        setMessage(
-          error instanceof Error ? error.message : messages.teacher.meetingLinkSaveError,
-        );
+        setMessage(getDisplayErrorMessage(error, messages.teacher.meetingLinkSaveError));
       }
     });
   }

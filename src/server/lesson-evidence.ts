@@ -10,7 +10,7 @@ export function buildProtectedLessonEvidenceUrl(
   lessonId: string,
   evidenceKey: string | null | undefined,
 ) {
-  if (!evidenceKey) {
+  if (!evidenceKey || !getBlobReadWriteToken()) {
     return null;
   }
 

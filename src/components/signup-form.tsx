@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { useI18n } from "~/components/locale-provider";
+import { getDisplayErrorMessage } from "~/lib/client-errors";
 import { readFormString } from "~/lib/forms";
 import { api } from "~/trpc/react";
 
@@ -34,9 +35,7 @@ export function SignupForm() {
             setMessage(messages.signup.message);
             formElement.reset();
           } catch (mutationError) {
-            setError(
-              mutationError instanceof Error ? mutationError.message : messages.signup.error,
-            );
+            setError(getDisplayErrorMessage(mutationError, messages.signup.error));
           }
         });
       }}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { type Metadata } from "next";
 
+import { AuthPageShell } from "~/components/auth-page-shell";
 import { LoginForm } from "~/components/login-form";
 import { getMessages } from "~/lib/i18n";
 import { getActiveUserSession } from "~/server/auth/active-session";
@@ -28,27 +29,28 @@ export default async function AdminLoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[var(--color-bg-main)] px-6 py-12">
-      <div className="w-full max-w-md">
-        <div className="glass-card rounded-[var(--radius-lg)] p-8">
-          <LoginForm
-            allowedRoles={["admin"]}
-            defaultRole="admin"
-            footerNote={messages.adminLogin.manualReset}
-            roleHint={messages.adminLogin.summary}
-            showForgotPassword={false}
-            showRoleSelector={false}
-            subtitle={messages.adminLogin.subtitle}
-            title={messages.adminLogin.title}
-          />
-        </div>
-        <div className="mt-6 flex items-center justify-between text-sm font-semibold text-[var(--color-text-secondary)]">
+    <AuthPageShell
+      locale={locale}
+      footer={
+        <>
           <Link href="/" className="font-medium transition-colors hover:text-[var(--color-text-main)]">
             {messages.common.backHome}
           </Link>
           <span>{messages.adminLogin.staffOnly}</span>
-        </div>
-      </div>
-    </main>
+        </>
+      }
+      variant="plain"
+    >
+      <LoginForm
+        allowedRoles={["admin"]}
+        defaultRole="admin"
+        footerNote={messages.adminLogin.manualReset}
+        roleHint={messages.adminLogin.summary}
+        showForgotPassword={false}
+        showRoleSelector={false}
+        subtitle={messages.adminLogin.subtitle}
+        title={messages.adminLogin.title}
+      />
+    </AuthPageShell>
   );
 }

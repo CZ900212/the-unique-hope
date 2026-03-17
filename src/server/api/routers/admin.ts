@@ -1,7 +1,8 @@
 import { del } from "@vercel/blob";
 import { TRPCError } from "@trpc/server";
 import { hash } from "bcryptjs";
-import { and, count, eq, inArray } from "drizzle-orm";
+import { and, count, eq, ilike, inArray, or } from "drizzle-orm";
+import { z } from "zod";
 
 import {
   createPairingSchema,
@@ -11,6 +12,7 @@ import {
   signupReviewSchema,
   toCanonicalEmail,
 } from "~/lib/domain";
+import { getMessages, type Locale } from "~/lib/i18n";
 import {
   pairings,
   profiles,
@@ -27,8 +29,12 @@ import {
 
 const adminProcedure = roleProtectedProcedure("admin");
 const BCRYPT_ROUNDS = 12;
+const listPairingsSchema = paginationSchema.extend({
+  search: z.string().trim().max(255).optional().default(""),
+});
 
-function mapDatabaseError(error: unknown) {
+function mapDatabaseError(error: unknown, locale: Locale) {
+  const messages = getMessages(locale);
   const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
   const message =
     typeof error === "object" && error && "message" in error ? String(error.message) : "";
@@ -36,7 +42,7 @@ function mapDatabaseError(error: unknown) {
   if (code === "23505" || message.includes("duplicate key")) {
     return new TRPCError({
       code: "CONFLICT",
-      message: "A username or email already exists for this pairing",
+      message: messages.errors.duplicatePairing,
     });
   }
 
@@ -44,7 +50,7 @@ function mapDatabaseError(error: unknown) {
     ? error
     : new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
-        message: "Unexpected database error",
+        message: messages.errors.unexpectedDatabase,
       });
 }
 
@@ -154,19 +160,62 @@ export const adminRouter = createTRPCRouter({
           },
         };
       } catch (error) {
-        throw mapDatabaseError(error);
+        throw mapDatabaseError(error, ctx.locale);
       }
     }),
 
   listPairings: adminProcedure
-    .input(paginationSchema.optional())
+    .input(listPairingsSchema.optional())
     .query(async ({ ctx, input }) => {
-      const page = input?.page ?? 1;
+      const requestedPage = input?.page ?? 1;
       const pageSize = input?.pageSize ?? 20;
-      const offset = (page - 1) * pageSize;
+      const search = input?.search?.trim() ?? "";
 
-      const [totalRow] = await ctx.db.select({ total: count() }).from(pairings);
+      const [overallTotalRow] = await ctx.db.select({ total: count() }).from(pairings);
+      const overallTotal = overallTotalRow?.total ?? 0;
+
+      let whereClause: ReturnType<typeof or> | undefined;
+      if (search) {
+        const profilePattern = `%${search.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+        const matchingProfiles = await ctx.db
+          .select({ id: profiles.id })
+          .from(profiles)
+          .where(
+            or(
+              ilike(profiles.name, profilePattern),
+              ilike(profiles.username, profilePattern),
+              ilike(profiles.contact, profilePattern),
+            ),
+          );
+        const matchingProfileIds = matchingProfiles.map((profile) => profile.id);
+
+        if (matchingProfileIds.length === 0) {
+          return {
+            pairings: [],
+            pagination: {
+              page: 1,
+              pageSize,
+              total: 0,
+              totalPages: 1,
+              overallTotal,
+            },
+          };
+        }
+
+        whereClause = or(
+          inArray(pairings.teacherProfileId, matchingProfileIds),
+          inArray(pairings.studentProfileId, matchingProfileIds),
+        );
+      }
+
+      const filteredTotal = whereClause
+        ? ((await ctx.db.select({ total: count() }).from(pairings).where(whereClause))[0]?.total ?? 0)
+        : overallTotal;
+      const totalPages = Math.max(1, Math.ceil(filteredTotal / pageSize));
+      const page = Math.min(Math.max(requestedPage, 1), totalPages);
+      const offset = (page - 1) * pageSize;
       const rows = await ctx.db.query.pairings.findMany({
+        where: whereClause,
         orderBy: (pairing, { desc }) => [desc(pairing.createdAt)],
         limit: pageSize,
         offset,
@@ -184,8 +233,9 @@ export const adminRouter = createTRPCRouter({
         pagination: {
           page,
           pageSize,
-          total: totalRow?.total ?? 0,
-          totalPages: Math.max(1, Math.ceil((totalRow?.total ?? 0) / pageSize)),
+          total: filteredTotal,
+          totalPages,
+          overallTotal,
         },
       };
     }),
@@ -208,6 +258,7 @@ export const adminRouter = createTRPCRouter({
   deletePairing: adminProcedure
     .input(deletePairingSchema)
     .mutation(async ({ ctx, input }) => {
+      const messages = getMessages(ctx.locale);
       const pairing = await ctx.db.query.pairings.findFirst({
         where: eq(pairings.id, input.id),
         with: {
@@ -220,7 +271,7 @@ export const adminRouter = createTRPCRouter({
       if (!pairing?.teacher || !pairing.student) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Pairing not found",
+          message: messages.errors.pairingNotFound,
         });
       }
 
@@ -289,6 +340,7 @@ export const adminRouter = createTRPCRouter({
   reviewStudentSignup: adminProcedure
     .input(signupReviewSchema)
     .mutation(async ({ ctx, input }) => {
+      const messages = getMessages(ctx.locale);
       const [updated] = await ctx.db
         .update(studentSignups)
         .set({
@@ -307,13 +359,13 @@ export const adminRouter = createTRPCRouter({
         if (!signup) {
           throw new TRPCError({
             code: "NOT_FOUND",
-            message: "Signup not found",
+            message: messages.errors.signupNotFound,
           });
         }
 
         throw new TRPCError({
           code: "CONFLICT",
-          message: "Signup already reviewed",
+          message: messages.errors.signupAlreadyReviewed,
         });
       }
 

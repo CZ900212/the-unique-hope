@@ -11,8 +11,11 @@ export const MESSAGES = {
       close: "Close",
       copyLink: "Copy Link",
       en: "EN",
+      growingTogether: "Growing together.",
       loading: "Loading…",
       save: "Save",
+      switchToChinese: "Switch to Chinese",
+      switchToEnglish: "Switch to English",
       zh: "中文",
     },
     landing: {
@@ -94,12 +97,14 @@ export const MESSAGES = {
       invalid: "That doesn't seem quite right for this role.",
       openDashboard: "Step Inside",
       password: "Password",
+      rateLimited: "Too many sign in attempts. Try again in 15 minutes.",
       resetSuccess: "Lock updated. Come on in with your new password.",
       roleHint: "Choose mentor or learner, then sign in with the same email or username you use every week.",
       roles: { admin: "Guide", student: "Learner", teacher: "Mentor" },
       signingIn: "Opening the door...",
       subtitle: "Welcome Back",
       title: "Continue your story.",
+      unavailable: "Unable to sign in right now. Please try again.",
       username: "Email or Username",
     },
     adminLogin: {
@@ -240,8 +245,10 @@ export const MESSAGES = {
       createPairing: "Guide a new connection",
       createPairingAction: "Create connection",
       creatingPairing: "Connecting...",
+      createPairingError: "We couldn't create this connection right now.",
       delete: "Remove",
       deleteConfirm: "Gently remove this connection and their accounts?",
+      deletePairingError: "We couldn't remove this connection right now.",
       exportCsv: "Save Records",
       fields: {
         age: "Age",
@@ -269,6 +276,7 @@ export const MESSAGES = {
       rejectReasonLabel: "A note for the decline",
       rejectPlaceholder: "Please share a reason...",
       rejectSignup: "Decline registration",
+      reviewError: "We couldn't update this signup right now.",
       rejected: "Declined",
       reviewed: "Reviewed",
       search: "Look for someone...",
@@ -285,6 +293,35 @@ export const MESSAGES = {
       loadError: "We couldn't load the latest data. Please refresh and try again.",
       loading: "Loading the latest data…",
     },
+    errors: {
+      adminPasswordResetDisabled:
+        "Admin password resets are handled internally. Contact the system owner.",
+      badJson: "Request body must be valid JSON.",
+      duplicatePairing: "A username or email already exists for this pairing.",
+      feedbackRequiresTaughtLesson: "Feedback is available only after a taught lesson.",
+      lessonUpdateInvalid: "Lesson update payload is invalid.",
+      pairingNotFound: "Pairing not found.",
+      passwordResetBadRequest: "Identifier and role are required.",
+      passwordResetInvalidToken: "This reset link is invalid or has expired.",
+      passwordResetTooManyRequests: "Too many password reset requests. Try again later.",
+      passwordResetUnavailable:
+        "Password reset is not available for this account right now. Contact an admin.",
+      profileNotFound: "Profile not found for the current user.",
+      resetPasswordBadRequest: "Token and matching passwords are required.",
+      studentNoAssignedTeacher: "Student has no assigned teacher.",
+      signupAlreadyReviewed: "Signup already reviewed.",
+      signupNotFound: "Signup not found.",
+      signupTooManyRequests: "Too many signup submissions. Try again later.",
+      teacherAuthRequired: "Teacher authentication required.",
+      teacherNoAssignedStudent: "Teacher has no assigned student.",
+      unexpectedDatabase: "Unexpected database error.",
+      uploadBadFileSignature: "File type does not match its contents.",
+      uploadBadFileType: "Unsupported file type.",
+      uploadFailed: "Unable to upload lesson evidence right now.",
+      uploadFileTooLarge: (maxUploadMb: number) =>
+        `File must be ${maxUploadMb}MB or smaller.`,
+      uploadStorageNotConfigured: "Upload storage is not configured.",
+    },
   },
   zh: {
     common: {
@@ -293,8 +330,11 @@ export const MESSAGES = {
       close: "关闭",
       copyLink: "复制链接",
       en: "EN",
+      growingTogether: "一起成长。",
       loading: "加载中…",
       save: "保存",
+      switchToChinese: "切换到中文",
+      switchToEnglish: "切换到英文",
       zh: "中文",
     },
     landing: {
@@ -372,12 +412,14 @@ export const MESSAGES = {
       invalid: "所选角色的账号或密码不正确。",
       openDashboard: "进入工作台",
       password: "密码",
+      rateLimited: "登录尝试次数过多，请 15 分钟后再试。",
       resetSuccess: "密码已更新，请使用新密码登录。",
       roleHint: "请选择教师或学生，再用平时登录使用的邮箱或用户名进入。",
       roles: { admin: "管理员", student: "学生", teacher: "教师" },
       signingIn: "登录中...",
       subtitle: "成员登录",
       title: "登录后继续这段旅程。",
+      unavailable: "暂时无法登录，请稍后再试。",
       username: "邮箱或用户名",
     },
     adminLogin: {
@@ -511,8 +553,10 @@ export const MESSAGES = {
       createPairing: "创建新配对",
       createPairingAction: "创建配对",
       creatingPairing: "创建中...",
+      createPairingError: "暂时无法创建这个配对。",
       delete: "删除",
       deleteConfirm: "确认删除这个配对以及两个关联账户？",
+      deletePairingError: "暂时无法删除这个配对。",
       exportCsv: "导出 CSV",
       fields: {
         age: "年龄",
@@ -540,6 +584,7 @@ export const MESSAGES = {
       rejectReasonLabel: "拒绝原因",
       rejectPlaceholder: "请输入拒绝原因...",
       rejectSignup: "拒绝报名",
+      reviewError: "暂时无法更新这条报名记录。",
       rejected: "已拒绝",
       reviewed: "已审核",
       search: "搜索学生或教师...",
@@ -556,13 +601,87 @@ export const MESSAGES = {
       loadError: "无法加载最新数据，请刷新后重试。",
       loading: "正在加载最新数据…",
     },
+    errors: {
+      adminPasswordResetDisabled: "管理员密码重置由系统负责人内部处理，请联系负责人。",
+      badJson: "请求体必须是有效的 JSON。",
+      duplicatePairing: "这个配对使用的用户名或邮箱已存在。",
+      feedbackRequiresTaughtLesson: "只有在课程被标记为已授课后才能提交反馈。",
+      lessonUpdateInvalid: "课程更新数据无效。",
+      pairingNotFound: "未找到该配对。",
+      passwordResetBadRequest: "必须提供账号标识和角色。",
+      passwordResetInvalidToken: "这个重置链接无效或已过期。",
+      passwordResetTooManyRequests: "密码重置请求过多，请稍后再试。",
+      passwordResetUnavailable: "该账户当前无法使用密码重置，请联系管理员。",
+      profileNotFound: "未找到当前用户对应的资料。",
+      resetPasswordBadRequest: "必须提供重置令牌，并保证两次密码输入一致。",
+      studentNoAssignedTeacher: "该学生当前还没有分配教师。",
+      signupAlreadyReviewed: "这条报名已经审核过了。",
+      signupNotFound: "未找到这条报名记录。",
+      signupTooManyRequests: "报名提交次数过多，请稍后再试。",
+      teacherAuthRequired: "需要教师身份验证。",
+      teacherNoAssignedStudent: "该教师当前还没有分配学生。",
+      unexpectedDatabase: "数据库暂时不可用，请稍后再试。",
+      uploadBadFileSignature: "文件内容与文件类型不匹配。",
+      uploadBadFileType: "暂不支持这种文件类型。",
+      uploadFailed: "暂时无法上传课堂证据。",
+      uploadFileTooLarge: (maxUploadMb: number) => `文件大小不能超过 ${maxUploadMb}MB。`,
+      uploadStorageNotConfigured: "上传存储尚未配置。",
+    },
   },
 } as const;
 
 export type Messages = (typeof MESSAGES)[Locale];
+type HeaderLike = Pick<Headers, "get">;
+
+export function isLocale(value: string | null | undefined): value is Locale {
+  return value === "en" || value === "zh";
+}
 
 export function resolveLocale(value: string | null | undefined): Locale {
-  return value === "zh" ? "zh" : "en";
+  return value === "zh" ? "zh" : DEFAULT_LOCALE;
+}
+
+export function readCookieValue(
+  cookieHeader: string | null | undefined,
+  cookieName: string,
+) {
+  if (!cookieHeader) {
+    return undefined;
+  }
+
+  for (const fragment of cookieHeader.split(";")) {
+    const trimmed = fragment.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf("=");
+    const name = separatorIndex === -1 ? trimmed : trimmed.slice(0, separatorIndex);
+    if (name !== cookieName) {
+      continue;
+    }
+
+    const value = separatorIndex === -1 ? "" : trimmed.slice(separatorIndex + 1);
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+export function resolveRequestLocale(
+  headers: HeaderLike,
+  fallbackLocale: string | null | undefined = DEFAULT_LOCALE,
+): Locale {
+  const cookieLocale = readCookieValue(headers.get("cookie"), LOCALE_COOKIE_NAME);
+  if (isLocale(cookieLocale)) {
+    return cookieLocale;
+  }
+
+  return resolveLocale(fallbackLocale);
 }
 
 export function getMessages(locale: Locale) {

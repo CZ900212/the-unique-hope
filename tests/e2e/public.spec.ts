@@ -10,6 +10,7 @@ test("homepage shows the new T3-style workflow positioning", async ({ page }) =>
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "Register A Student" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Teacher / Student Login" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Switch to Chinese" })).toBeVisible();
 });
 
 test("public auth routes render", async ({ page }) => {
@@ -48,4 +49,20 @@ test("teacher and student dashboards redirect to login when signed out", async (
 
   await page.goto("/student");
   await expect(page).toHaveURL(/\/login$/);
+});
+
+test("locale switcher updates content and persists across navigation and reload", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Switch to Chinese" }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "为罕见病儿童提供一对一线上英语支持。" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "切换到英文" })).toBeVisible();
+
+  await page.goto("/login");
+  await expect(page.getByRole("heading", { name: "登录后继续这段旅程。" })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "登录后继续这段旅程。" })).toBeVisible();
 });

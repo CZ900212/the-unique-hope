@@ -6,13 +6,41 @@ import {
 } from "./lesson-evidence";
 
 describe("lesson evidence helpers", () => {
+  it("returns null when blob storage is unavailable", () => {
+    const previousToken = process.env.BLOB_READ_WRITE_TOKEN;
+    const previousLegacyToken = process.env.VERCEL_BLOB_READ_WRITE_TOKEN;
+
+    try {
+      delete process.env.BLOB_READ_WRITE_TOKEN;
+      delete process.env.VERCEL_BLOB_READ_WRITE_TOKEN;
+
+      expect(
+        buildProtectedLessonEvidenceUrl(
+          "lesson-123",
+          "lessons/pairing-1/week-1/file.png",
+        ),
+      ).toBeNull();
+    } finally {
+      restoreEnv("BLOB_READ_WRITE_TOKEN", previousToken);
+      restoreEnv("VERCEL_BLOB_READ_WRITE_TOKEN", previousLegacyToken);
+    }
+  });
+
   it("returns an internal authenticated route instead of a blob URL", () => {
-    expect(
-      buildProtectedLessonEvidenceUrl(
-        "lesson-123",
-        "lessons/pairing-1/week-1/file.png",
-      ),
-    ).toBe("/api/uploads/lesson-evidence/lesson-123");
+    const previousToken = process.env.BLOB_READ_WRITE_TOKEN;
+
+    try {
+      process.env.BLOB_READ_WRITE_TOKEN = "blob-token";
+
+      expect(
+        buildProtectedLessonEvidenceUrl(
+          "lesson-123",
+          "lessons/pairing-1/week-1/file.png",
+        ),
+      ).toBe("/api/uploads/lesson-evidence/lesson-123");
+    } finally {
+      restoreEnv("BLOB_READ_WRITE_TOKEN", previousToken);
+    }
   });
 
   it("returns null when there is no stored evidence key", () => {
@@ -35,3 +63,12 @@ describe("lesson evidence helpers", () => {
     });
   });
 });
+
+function restoreEnv(key: "BLOB_READ_WRITE_TOKEN" | "VERCEL_BLOB_READ_WRITE_TOKEN", value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[key];
+    return;
+  }
+
+  process.env[key] = value;
+}

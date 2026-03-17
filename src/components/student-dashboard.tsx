@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 
 import { AppDialog } from "~/components/app-dialog";
 import { useI18n } from "~/components/locale-provider";
+import { getDisplayErrorMessage } from "~/lib/client-errors";
 import { type Messages } from "~/lib/i18n";
 import { api } from "~/trpc/react";
 import { PortalShell } from "~/components/portal-shell";
@@ -60,9 +61,7 @@ export function StudentDashboard() {
         });
         setMessage(messages.student.feedbackSubmitted);
       } catch (error) {
-        setMessage(
-          error instanceof Error ? error.message : messages.student.feedbackError,
-        );
+        setMessage(getDisplayErrorMessage(error, messages.student.feedbackError));
       }
     });
   }

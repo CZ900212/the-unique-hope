@@ -59,6 +59,35 @@ describe("password reset request route", () => {
     expect(payload.previewUrl).toBeUndefined();
   });
 
+  it("collapses suppressed reset requests into the same generic success response", async () => {
+    mocks.requestPasswordReset.mockResolvedValue({
+      status: "suppressed",
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/password-reset/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          identifier: "teacher.local",
+          role: "teacher",
+        }),
+      }),
+    );
+    const payload = (await response.json()) as {
+      ok: boolean;
+      error?: { code?: string };
+      status?: string;
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(payload.error).toBeUndefined();
+    expect(payload.status).toBeUndefined();
+  });
+
   it("rejects admin password reset attempts with a fixed manual-reset message", async () => {
     const response = await POST(
       new Request("http://localhost/api/password-reset/request", {
@@ -85,5 +114,33 @@ describe("password reset request route", () => {
       message: "Admin password resets are handled internally. Contact the system owner.",
     });
     expect(mocks.requestPasswordReset).not.toHaveBeenCalled();
+  });
+
+  it("localizes admin reset errors from the locale cookie", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/password-reset/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          cookie: "uh_locale=zh",
+        },
+        body: JSON.stringify({
+          identifier: "admin@example.com",
+          role: "admin",
+        }),
+      }),
+    );
+    const payload = (await response.json()) as {
+      error?: {
+        code?: string;
+        message?: string;
+      };
+    };
+
+    expect(response.status).toBe(403);
+    expect(payload.error).toEqual({
+      code: "PASSWORD_RESET_DISABLED",
+      message: "管理员密码重置由系统负责人内部处理，请联系负责人。",
+    });
   });
 });

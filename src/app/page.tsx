@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { LocaleSwitcher } from "~/components/locale-switcher";
 import { getMessages } from "~/lib/i18n";
 import { getActiveUserSession } from "~/server/auth/active-session";
 import { getServerLocale } from "~/server/locale";
@@ -24,6 +25,7 @@ export default async function HomePage() {
             <a href="#story" className="hover:text-[var(--color-text-main)] transition-colors">{messages.landing.nav.story}</a>
           </nav>
           <div className="flex items-center gap-3">
+            <LocaleSwitcher locale={locale} />
             <Link
               href="/signup"
               className="btn-outline px-5 py-2.5 text-sm font-semibold"
@@ -166,7 +168,7 @@ export default async function HomePage() {
           </div>
           <div className="mt-10 border-t border-emerald-800 pt-6">
             <p className="text-sm text-emerald-300/60">
-              &copy; {new Date().getFullYear()} {messages.common.appName}. Growing together.
+              &copy; {new Date().getFullYear()} {messages.common.appName}. {messages.common.growingTogether}
             </p>
           </div>
         </div>

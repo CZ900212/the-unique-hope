@@ -15,6 +15,7 @@ import { type Role } from "~/lib/domain";
 import { loadActiveUserSession } from "~/server/auth/active-session";
 import { auth } from "~/server/auth";
 import { db } from "~/server/db";
+import { getRequestLocale } from "~/server/locale";
 
 /**
  * 1. CONTEXT
@@ -33,6 +34,7 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
 
   return {
     db,
+    locale: getRequestLocale(opts.headers),
     session,
     ...opts,
   };
