@@ -88,7 +88,7 @@ export default async function HomePage() {
           {pillars.map((pillar) => (
             <article key={pillar.eyebrow} className="feature-card">
               <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-[var(--radius-lg)] bg-[linear-gradient(135deg,var(--color-primary-50),var(--color-primary-light))] text-[var(--color-primary)] text-2xl font-bold shadow-sm">
-                {pillar.eyebrow.charAt(0)}
+                {pillar.eyebrow.replace(/^0+/, "") || pillar.eyebrow}
               </div>
               <h3 className="font-[var(--font-title)] text-xl font-bold text-[var(--color-text-main)]">
                 {pillar.title}

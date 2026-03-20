@@ -25,9 +25,9 @@ export function PortalShell(props: {
   const { locale, messages } = useI18n();
 
   return (
-    <main className="min-h-screen bg-[var(--color-bg-secondary)] px-4 py-6 md:px-6">
-      <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-7xl gap-6 lg:grid-cols-[18rem_1fr]">
-        <aside className="rounded-[var(--radius-lg)] bg-[var(--color-white)] border border-[var(--card-border)] p-8 flex flex-col overflow-hidden">
+    <main className="min-h-screen overflow-x-hidden bg-[var(--color-bg-secondary)] px-4 py-6 md:px-6">
+      <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-[1500px] gap-6 overflow-x-hidden lg:grid-cols-[clamp(19rem,22vw,21rem)_minmax(0,1fr)] xl:gap-8">
+        <aside className="rounded-[var(--radius-lg)] bg-[var(--color-white)] border border-[var(--card-border)] p-8 flex flex-col overflow-hidden lg:sticky lg:top-6 lg:min-h-[calc(100vh-3rem)]">
           <div className="relative">
             <div className="pointer-events-none absolute -top-8 -left-8 -right-8 h-24 bg-[linear-gradient(135deg,var(--color-primary-50),var(--color-primary-light))] opacity-60 blur-xl" />
             <Link href="/" className="relative inline-block font-[var(--font-title)] text-sm font-bold uppercase tracking-[0.24em] text-[var(--color-primary)] transition-opacity hover:opacity-80">
@@ -80,7 +80,7 @@ export function PortalShell(props: {
           </button>
         </aside>
 
-        <section className="glass-card rounded-[var(--radius-lg)] p-6 lg:p-10 flex flex-col">
+        <section className="glass-card min-w-0 overflow-x-hidden rounded-[var(--radius-lg)] p-6 lg:p-10 flex flex-col">
           <div className="flex flex-col gap-6 border-b border-[var(--card-border)] pb-8 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="text-xs font-bold uppercase tracking-[0.24em] text-[var(--color-primary)]">

@@ -29,6 +29,7 @@ next-env.d.ts
 # misc
 .DS_Store
 *.pem
+context.md
 .venv/
 /frontend/dist/
 /.claude/

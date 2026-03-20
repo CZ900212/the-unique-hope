@@ -65,10 +65,12 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
   min-height: 100vh;
+  overflow-x: hidden;
   background-color: var(--color-bg-main);
   color: var(--color-text-main);
   font-family: var(--font-body), sans-serif;
