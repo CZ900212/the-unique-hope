@@ -16,18 +16,21 @@ export const lessonStatusSchema = z.enum([
 ]);
 export const visibilitySchema = z.enum(["private", "shared"]);
 export const signupStatusSchema = z.enum(["pending", "approved", "rejected", "all"]);
+export const profileMatchStatusSchema = z.enum(["pending", "matched"]);
 export const passwordSchema = z.string().min(6).max(128);
 export const usernameSchema = z
   .string()
   .trim()
   .toLowerCase()
   .regex(/^[a-z0-9._-]{3,32}$/, "username must be 3-32 chars: a-z 0-9 . _ -");
+export const nameSchema = z.string().trim().min(1).max(120);
 export const phoneSchema = z
   .string()
   .trim()
   .min(6)
   .max(20)
   .regex(/^[0-9\s+\-()]+$/);
+export const shortTextSchema = z.string().trim().min(1).max(255);
 export const weekSchema = z.number().int().min(1).max(TOTAL_WEEKS);
 
 export const paginationSchema = z.object({
@@ -61,29 +64,9 @@ export const resetPasswordSchema = z
     path: ["confirmPassword"],
   });
 
-const deliverableEmailSchema = z
-  .string()
-  .trim()
-  .email()
-  .refine((value) => !isManagedLocalEmail(value), {
-    message: "email must be a real deliverable address",
-  });
-
 export const createPairingSchema = z.object({
-  student: z.object({
-    name: z.string().trim().min(1).max(120),
-    username: usernameSchema,
-    email: deliverableEmailSchema,
-    password: passwordSchema,
-    contact: z.string().trim().max(255).optional().default(""),
-  }),
-  teacher: z.object({
-    name: z.string().trim().min(1).max(120),
-    username: usernameSchema,
-    email: deliverableEmailSchema,
-    password: passwordSchema,
-    contact: z.string().trim().max(255).optional().default(""),
-  }),
+  studentProfileId: z.string().uuid(),
+  teacherProfileId: z.string().uuid(),
 });
 
 export const lessonUpdateSchema = z.object({
@@ -121,10 +104,22 @@ export const feedbackUpsertSchema = z.object({
 });
 
 export const studentSignupSchema = z.object({
-  childName: z.string().trim().min(1).max(120),
+  childName: nameSchema,
   age: z.number().int().min(3).max(18),
   phone: phoneSchema,
   contact: z.string().trim().max(255).optional().default(""),
+  username: usernameSchema,
+  password: passwordSchema,
+});
+
+export const teacherSignupSchema = z.object({
+  name: nameSchema,
+  gender: z.string().trim().min(1).max(16),
+  school: shortTextSchema,
+  grade: z.string().trim().min(1).max(64),
+  englishScore: z.string().trim().min(1).max(MAX_NOTE_LENGTH),
+  username: usernameSchema,
+  password: passwordSchema,
 });
 
 export const signupReviewSchema = z
@@ -145,6 +140,7 @@ export const deletePairingSchema = z.object({
 export type Role = z.infer<typeof roleSchema>;
 export type LessonStatus = z.infer<typeof lessonStatusSchema>;
 export type Visibility = z.infer<typeof visibilitySchema>;
+export type ProfileMatchStatus = z.infer<typeof profileMatchStatusSchema>;
 
 export function normalizeIdentifier(identifierRaw: string) {
   return identifierRaw.trim().toLowerCase();

@@ -1,0 +1,28 @@
+{
+  "inquiries": [
+    {
+      "sourceChannel": "wechat-form",
+      "sourceSerial": "0001",
+      "sourceSubmittedAt": "2026-04-09T10:00:00+08:00",
+      "sourceIp": "203.0.113.10",
+      "sourceRegion": "上海-上海",
+      "studentName": "Demo Student A",
+      "gender": "女",
+      "school": "Demo High School",
+      "grade": "G10",
+      "englishScore": "TOEFL 102"
+    },
+    {
+      "sourceChannel": "wechat-form",
+      "sourceSerial": "9007199254740993",
+      "sourceSubmittedAt": "2026-04-09T10:05:00+08:00",
+      "sourceIpHash": "hmac-sha256:825cde93b9c8f7ec247bb1f98a826f31d8a7ecb6bfdf38a29410eae878d4f8d4",
+      "sourceRegion": "浙江-杭州",
+      "studentName": "Demo Student B",
+      "gender": "男",
+      "school": "Sample Academy",
+      "grade": "G11",
+      "englishScore": "IELTS 7.0"
+    }
+  ]
+}

@@ -101,6 +101,44 @@ async function main() {
   const profileIdMap = new Map<string, { profileId: string; userId: string }>();
   const pairingIdMap = new Map<string, string>();
 
+  async function createSignupProfile(signup: InstantSignup) {
+    const base = signup.childName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 24) || "student";
+    const phoneSuffix = signup.phone.replace(/\D+/g, "").slice(-4) || "wait";
+    let username = `${base}_${phoneSuffix}`.slice(0, 32);
+    let counter = 1;
+
+    while (await db.query.profiles.findFirst({ where: eq(profiles.username, username) })) {
+      const suffix = `_${counter}`;
+      username = `${base.slice(0, 32 - suffix.length)}${suffix}`;
+      counter += 1;
+    }
+
+    const [user] = await db
+      .insert(users)
+      .values({
+        email: toCanonicalEmail(undefined, username, "student"),
+        name: signup.childName,
+      })
+      .returning();
+    const [profile] = await db
+      .insert(profiles)
+      .values({
+        userId: user!.id,
+        role: "student",
+        username,
+        name: signup.childName,
+        contact: signup.contact ?? "",
+      })
+      .returning();
+
+    return profile!;
+  }
+
   for (const legacyProfile of legacyProfiles) {
     const email =
       legacyProfile.user?.[0]?.email?.toLowerCase() ??
@@ -172,7 +210,10 @@ async function main() {
     });
     if (existing) continue;
 
+    const profile = await createSignupProfile(signup);
+
     await db.insert(studentSignups).values({
+      profileId: profile.id,
       childName: signup.childName,
       age: signup.age,
       phone: signup.phone,

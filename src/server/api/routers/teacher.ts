@@ -5,13 +5,29 @@ import { pairings } from "~/server/db/schema";
 import { createTRPCRouter, roleProtectedProcedure } from "~/server/api/trpc";
 import { buildProtectedLessonEvidenceUrl } from "~/server/lesson-evidence";
 import { findLatestTeacherVisibleFeedback } from "~/server/services/lesson-feedback";
-import { getPairingForTeacher } from "~/server/services/pairings";
+import {
+  getTeacherDashboardState,
+  requireMatchedTeacherPairing,
+} from "~/server/services/pairings";
 
 const teacherProcedure = roleProtectedProcedure("teacher");
 
 export const teacherRouter = createTRPCRouter({
   dashboard: teacherProcedure.query(async ({ ctx }) => {
-    const { pairing, profile } = await getPairingForTeacher(ctx.session.user.id, ctx.locale);
+    const state = await getTeacherDashboardState(ctx.session.user.id, ctx.locale);
+
+    if (state.matchingStatus !== "matched") {
+      return {
+        matchingStatus: state.matchingStatus,
+        rejectReason: state.matchingStatus === "rejected" ? state.rejectReason : "",
+        teacher: {
+          id: state.profile.id,
+          name: state.profile.name,
+        },
+      };
+    }
+
+    const { pairing, profile } = state;
     const latestSharedFeedback = findLatestTeacherVisibleFeedback(
       pairing.feedback,
       pairing.lessons,
@@ -19,6 +35,7 @@ export const teacherRouter = createTRPCRouter({
     const taughtCount = pairing.lessons.filter((lesson) => lesson.status === "taught").length;
 
     return {
+      matchingStatus: state.matchingStatus,
       teacher: {
         id: profile.id,
         name: profile.name,
@@ -59,7 +76,10 @@ export const teacherRouter = createTRPCRouter({
   updateMeetingLink: teacherProcedure
     .input(updateMeetingLinkSchema)
     .mutation(async ({ ctx, input }) => {
-      const { pairing } = await getPairingForTeacher(ctx.session.user.id, ctx.locale);
+      const { pairing } = await requireMatchedTeacherPairing(
+        ctx.session.user.id,
+        ctx.locale,
+      );
       const [updatedPairing] = await ctx.db
         .update(pairings)
         .set({

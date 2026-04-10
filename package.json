@@ -14,6 +14,8 @@
     "dev": "next dev --turbo",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
+    "import:student-inquiries": "tsx --env-file=.env scripts/import-student-inquiries.ts",
+    "import:student-inquiries:check": "tsx --env-file=.env scripts/import-student-inquiries.ts --dry-run",
     "lint": "SKIP_ENV_VALIDATION=1 eslint src scripts tests drizzle.config.ts next.config.js eslint.config.js vitest.config.ts playwright.config.ts --ext .ts,.tsx,.js",
     "lint:fix": "SKIP_ENV_VALIDATION=1 eslint src scripts tests drizzle.config.ts next.config.js eslint.config.js vitest.config.ts playwright.config.ts --ext .ts,.tsx,.js --fix",
     "migrate:instant": "tsx --env-file=.env scripts/migrate-instant.ts",
@@ -37,10 +39,10 @@
     "bcryptjs": "^3.0.2",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.41.0",
-    "file-type": "^20.5.0",
+    "file-type": "^21.3.4",
     "lucide-react": "^0.511.0",
-    "next": "^15.2.3",
-    "next-auth": "5.0.0-beta.25",
+    "next": "^15.5.14",
+    "next-auth": "^5.0.0-beta.30",
     "postgres": "^3.4.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -67,6 +69,9 @@
     "typescript": "^5.8.2",
     "typescript-eslint": "^8.27.0",
     "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "undici": "^6.24.0"
   },
   "packageManager": "npm@11.6.0"
 }

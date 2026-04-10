@@ -17,7 +17,7 @@ import {
   getBlobReadWriteToken,
 } from "~/server/lesson-evidence";
 import { getRequestLocale } from "~/server/locale";
-import { getPairingForTeacher } from "~/server/services/pairings";
+import { requireMatchedTeacherPairing } from "~/server/services/pairings";
 import {
   findTeacherLesson,
   upsertTeacherLessonRecord,
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   } | null = null;
 
   try {
-    const { pairing } = await getPairingForTeacher(session.user.id, locale);
+    const { pairing } = await requireMatchedTeacherPairing(session.user.id, locale);
     const existing = await findTeacherLesson(pairing.id, parsedLesson.data.week);
     uploadResult =
       file instanceof File

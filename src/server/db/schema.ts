@@ -15,7 +15,11 @@ import { type AdapterAccount } from "@auth/core/adapters";
 
 export const createTable = pgTableCreator((name) => `unique_hope_${name}`);
 
-export const roleEnum = pgEnum("unique_hope_role", ["admin", "teacher", "student"]);
+export const roleEnum = pgEnum("unique_hope_role", [
+  "admin",
+  "teacher",
+  "student",
+]);
 export const lessonStatusEnum = pgEnum("unique_hope_lesson_status", [
   "pending",
   "taught",
@@ -23,11 +27,18 @@ export const lessonStatusEnum = pgEnum("unique_hope_lesson_status", [
   "student_leave",
   "sick",
 ]);
-export const visibilityEnum = pgEnum("unique_hope_visibility", ["private", "shared"]);
+export const visibilityEnum = pgEnum("unique_hope_visibility", [
+  "private",
+  "shared",
+]);
 export const signupStatusEnum = pgEnum("unique_hope_signup_status", [
   "pending",
   "approved",
   "rejected",
+]);
+export const profileMatchStatusEnum = pgEnum("unique_hope_profile_match_status", [
+  "pending",
+  "matched",
 ]);
 
 export const users = createTable(
@@ -55,9 +66,13 @@ export const accounts = createTable(
     userId: varchar("user_id", { length: 255 })
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    type: varchar("type", { length: 255 }).$type<AdapterAccount["type"]>().notNull(),
+    type: varchar("type", { length: 255 })
+      .$type<AdapterAccount["type"]>()
+      .notNull(),
     provider: varchar("provider", { length: 255 }).notNull(),
-    providerAccountId: varchar("provider_account_id", { length: 255 }).notNull(),
+    providerAccountId: varchar("provider_account_id", {
+      length: 255,
+    }).notNull(),
     refresh_token: text("refresh_token"),
     access_token: text("access_token"),
     expires_at: integer("expires_at"),
@@ -75,11 +90,16 @@ export const accounts = createTable(
 export const sessions = createTable(
   "session",
   {
-    sessionToken: varchar("session_token", { length: 255 }).notNull().primaryKey(),
+    sessionToken: varchar("session_token", { length: 255 })
+      .notNull()
+      .primaryKey(),
     userId: varchar("user_id", { length: 255 })
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    expires: timestamp("expires", { mode: "date", withTimezone: true }).notNull(),
+    expires: timestamp("expires", {
+      mode: "date",
+      withTimezone: true,
+    }).notNull(),
   },
   (table) => [index("session_user_id_idx").on(table.userId)],
 );
@@ -89,7 +109,10 @@ export const verificationTokens = createTable(
   {
     identifier: varchar("identifier", { length: 255 }).notNull(),
     token: varchar("token", { length: 255 }).notNull(),
-    expires: timestamp("expires", { mode: "date", withTimezone: true }).notNull(),
+    expires: timestamp("expires", {
+      mode: "date",
+      withTimezone: true,
+    }).notNull(),
   },
   (table) => [primaryKey({ columns: [table.identifier, table.token] })],
 );
@@ -105,6 +128,7 @@ export const profiles = createTable(
     username: varchar("username", { length: 32 }).notNull(),
     name: varchar("name", { length: 120 }).notNull(),
     contact: varchar("contact", { length: 255 }),
+    matchStatus: profileMatchStatusEnum("match_status").default("pending").notNull(),
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -116,23 +140,20 @@ export const profiles = createTable(
   ],
 );
 
-export const userCredentials = createTable(
-  "user_credential",
-  {
-    userId: varchar("user_id", { length: 255 })
-      .notNull()
-      .primaryKey()
-      .references(() => users.id, { onDelete: "cascade" }),
-    passwordHash: text("password_hash").notNull(),
-    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true })
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-);
+export const userCredentials = createTable("user_credential", {
+  userId: varchar("user_id", { length: 255 })
+    .notNull()
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+});
 
 export const passwordResetTokens = createTable(
   "password_reset_token",
@@ -142,7 +163,10 @@ export const passwordResetTokens = createTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     tokenHash: varchar("token_hash", { length: 64 }).notNull(),
-    expiresAt: timestamp("expires_at", { mode: "date", withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", {
+      mode: "date",
+      withTimezone: true,
+    }).notNull(),
     usedAt: timestamp("used_at", { mode: "date", withTimezone: true }),
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
       .defaultNow()
@@ -159,6 +183,9 @@ export const studentSignups = createTable(
   "student_signup",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
     childName: varchar("child_name", { length: 120 }).notNull(),
     age: integer("age").notNull(),
     phone: varchar("phone", { length: 20 }).notNull(),
@@ -170,7 +197,66 @@ export const studentSignups = createTable(
       .notNull(),
     reviewedAt: timestamp("reviewed_at", { mode: "date", withTimezone: true }),
   },
-  (table) => [index("signup_status_idx").on(table.status, table.createdAt)],
+  (table) => [
+    uniqueIndex("student_signup_profile_idx").on(table.profileId),
+    index("signup_status_idx").on(table.status, table.createdAt),
+  ],
+);
+
+export const teacherSignups = createTable(
+  "teacher_signup",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    gender: varchar("gender", { length: 16 }).notNull(),
+    school: varchar("school", { length: 255 }).notNull(),
+    grade: varchar("grade", { length: 64 }).notNull(),
+    englishScore: text("english_score").notNull(),
+    status: signupStatusEnum("status").default("pending").notNull(),
+    rejectReason: varchar("reject_reason", { length: 500 }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    reviewedAt: timestamp("reviewed_at", { mode: "date", withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("teacher_signup_profile_idx").on(table.profileId),
+    index("teacher_signup_created_at_idx").on(table.createdAt),
+    index("teacher_signup_status_idx").on(table.status, table.createdAt),
+  ],
+);
+
+export const studentInquiries = createTable(
+  "student_inquiry",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sourceSerial: varchar("source_serial", { length: 128 }).notNull(),
+    sourceSubmittedAt: timestamp("source_submitted_at", {
+      mode: "date",
+      withTimezone: true,
+    }).notNull(),
+    sourceIpHash: varchar("source_ip_hash", { length: 80 }).notNull(),
+    sourceRegion: varchar("source_region", { length: 120 }),
+    sourceChannel: varchar("source_channel", { length: 64 }).notNull(),
+    studentName: varchar("student_name", { length: 255 }).notNull(),
+    gender: varchar("gender", { length: 16 }).notNull(),
+    school: varchar("school", { length: 255 }).notNull(),
+    grade: varchar("grade", { length: 64 }).notNull(),
+    englishScore: text("english_score").notNull(),
+    importedAt: timestamp("imported_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("student_inquiry_source_channel_serial_idx").on(
+      table.sourceChannel,
+      table.sourceSerial,
+    ),
+    index("student_inquiry_submitted_at_idx").on(table.sourceSubmittedAt),
+    index("student_inquiry_student_name_idx").on(table.studentName),
+  ],
 );
 
 export const requestRateLimits = createTable(
@@ -180,8 +266,14 @@ export const requestRateLimits = createTable(
     action: varchar("action", { length: 64 }).notNull(),
     subjectHash: varchar("subject_hash", { length: 64 }).notNull(),
     count: integer("count").default(1).notNull(),
-    bucketStart: timestamp("bucket_start", { mode: "date", withTimezone: true }).notNull(),
-    expiresAt: timestamp("expires_at", { mode: "date", withTimezone: true }).notNull(),
+    bucketStart: timestamp("bucket_start", {
+      mode: "date",
+      withTimezone: true,
+    }).notNull(),
+    expiresAt: timestamp("expires_at", {
+      mode: "date",
+      withTimezone: true,
+    }).notNull(),
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -237,7 +329,10 @@ export const lessons = createTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    uniqueIndex("lesson_pairing_week_idx").on(table.pairingId, table.weekNumber),
+    uniqueIndex("lesson_pairing_week_idx").on(
+      table.pairingId,
+      table.weekNumber,
+    ),
     index("lesson_pairing_idx").on(table.pairingId),
   ],
 );
@@ -321,6 +416,14 @@ export const profilesRelations = relations(profiles, ({ one, many }) => ({
     fields: [profiles.userId],
     references: [users.id],
   }),
+  studentSignup: one(studentSignups, {
+    fields: [profiles.id],
+    references: [studentSignups.profileId],
+  }),
+  teacherSignup: one(teacherSignups, {
+    fields: [profiles.id],
+    references: [teacherSignups.profileId],
+  }),
   teacherPairing: one(pairings, {
     fields: [profiles.id],
     references: [pairings.teacherProfileId],
@@ -334,19 +437,39 @@ export const profilesRelations = relations(profiles, ({ one, many }) => ({
   feedback: many(feedback),
 }));
 
-export const userCredentialsRelations = relations(userCredentials, ({ one }) => ({
-  user: one(users, {
-    fields: [userCredentials.userId],
-    references: [users.id],
+export const userCredentialsRelations = relations(
+  userCredentials,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userCredentials.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const studentSignupsRelations = relations(studentSignups, ({ one }) => ({
+  profile: one(profiles, {
+    fields: [studentSignups.profileId],
+    references: [profiles.id],
   }),
 }));
 
-export const passwordResetTokensRelations = relations(passwordResetTokens, ({ one }) => ({
-  user: one(users, {
-    fields: [passwordResetTokens.userId],
-    references: [users.id],
+export const teacherSignupsRelations = relations(teacherSignups, ({ one }) => ({
+  profile: one(profiles, {
+    fields: [teacherSignups.profileId],
+    references: [profiles.id],
   }),
 }));
+
+export const passwordResetTokensRelations = relations(
+  passwordResetTokens,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [passwordResetTokens.userId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const pairingsRelations = relations(pairings, ({ one, many }) => ({
   teacher: one(profiles, {

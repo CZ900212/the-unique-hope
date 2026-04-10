@@ -3,15 +3,25 @@
 import { useDeferredValue, useState, useTransition } from "react";
 
 import { AppDialog } from "~/components/app-dialog";
+import { PortalShell } from "~/components/portal-shell";
 import { useI18n } from "~/components/locale-provider";
 import { getDisplayErrorMessage } from "~/lib/client-errors";
 import { readFormString } from "~/lib/forms";
 import { type Messages } from "~/lib/i18n";
 import { api } from "~/trpc/react";
-import { PortalShell } from "~/components/portal-shell";
 
-type View = "pairings" | "progress" | "signups";
-type SignupFilter = "all" | "pending" | "approved" | "rejected";
+type View = "pairings" | "progress" | "waiting";
+type RejectTarget =
+  | {
+      name: string;
+      role: "student";
+      signupId: string;
+    }
+  | {
+      name: string;
+      role: "teacher";
+      signupId: string;
+    };
 
 const WEEK_NUMBERS = Array.from({ length: 20 }, (_, index) => index + 1);
 const PAIRING_PAGE_SIZE = 20;
@@ -21,11 +31,11 @@ export function AdminDashboard() {
   const utils = api.useUtils();
   const [activeView, setActiveView] = useState<View>("pairings");
   const [pairingPage, setPairingPage] = useState(1);
-  const [signupPage, setSignupPage] = useState(1);
-  const [signupFilter, setSignupFilter] = useState<SignupFilter>("all");
   const [search, setSearch] = useState("");
   const [isPairingModalOpen, setPairingModalOpen] = useState(false);
-  const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
+  const [selectedStudentProfileId, setSelectedStudentProfileId] = useState("");
+  const [selectedTeacherProfileId, setSelectedTeacherProfileId] = useState("");
+  const [rejectTarget, setRejectTarget] = useState<RejectTarget | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [error, setError] = useState("");
   const [, startTransition] = useTransition();
@@ -39,22 +49,18 @@ export function AdminDashboard() {
   const progressReportQuery = api.admin.progressReport.useQuery(undefined, {
     enabled: activeView === "progress",
   });
-  const signupsQuery = api.admin.listStudentSignups.useQuery({
-    page: signupPage,
-    pageSize: 20,
-    status: signupFilter,
-  }, {
-    enabled: activeView === "signups",
-  });
+  const waitingPoolQuery = api.admin.waitingPool.useQuery();
 
   const createPairing = api.admin.createPairing.useMutation({
     onSuccess: async () => {
       setPairingModalOpen(false);
+      setSelectedStudentProfileId("");
+      setSelectedTeacherProfileId("");
       setError("");
       await Promise.all([
         utils.admin.listPairings.invalidate(),
         utils.admin.progressReport.invalidate(),
-        utils.admin.listStudentSignups.invalidate(),
+        utils.admin.waitingPool.invalidate(),
       ]);
     },
     onError: (mutationError) =>
@@ -67,17 +73,28 @@ export function AdminDashboard() {
       await Promise.all([
         utils.admin.listPairings.invalidate(),
         utils.admin.progressReport.invalidate(),
+        utils.admin.waitingPool.invalidate(),
       ]);
     },
     onError: (mutationError) =>
       setError(getDisplayErrorMessage(mutationError, messages.admin.deletePairingError)),
   });
 
-  const reviewSignup = api.admin.reviewStudentSignup.useMutation({
+  const reviewStudentSignup = api.admin.reviewStudentSignup.useMutation({
     onSuccess: async () => {
-      setRejectTargetId(null);
+      setRejectTarget(null);
       setRejectReason("");
-      await utils.admin.listStudentSignups.invalidate();
+      await utils.admin.waitingPool.invalidate();
+    },
+    onError: (mutationError) =>
+      setError(getDisplayErrorMessage(mutationError, messages.admin.reviewError)),
+  });
+
+  const reviewTeacherSignup = api.admin.reviewTeacherSignup.useMutation({
+    onSuccess: async () => {
+      setRejectTarget(null);
+      setRejectReason("");
+      await utils.admin.waitingPool.invalidate();
     },
     onError: (mutationError) =>
       setError(getDisplayErrorMessage(mutationError, messages.admin.reviewError)),
@@ -87,22 +104,40 @@ export function AdminDashboard() {
   const currentPairingPage = pairingsQuery.data?.pagination.page ?? pairingPage;
   const pairingTotalPages = pairingsQuery.data?.pagination.totalPages ?? 1;
   const progressRows = progressReportQuery.data?.pairings ?? [];
+  const waitingStudents = waitingPoolQuery.data?.students ?? [];
+  const waitingTeachers = waitingPoolQuery.data?.teachers ?? [];
   const isLoading =
     activeView === "pairings"
       ? pairingsQuery.isLoading
       : activeView === "progress"
         ? progressReportQuery.isLoading
-        : signupsQuery.isLoading;
+        : waitingPoolQuery.isLoading;
   const loadError =
     activeView === "pairings"
       ? pairingsQuery.error
       : activeView === "progress"
         ? progressReportQuery.error
-        : signupsQuery.error;
+        : waitingPoolQuery.error;
   const totalPairings =
     pairingsQuery.data?.pagination.overallTotal ??
     progressReportQuery.data?.totalPairings ??
     0;
+
+  const pairingDisabled = waitingStudents.length === 0 || waitingTeachers.length === 0;
+  const selectedStudent =
+    waitingStudents.find((student) => student.profileId === selectedStudentProfileId) ?? null;
+  const selectedTeacher =
+    waitingTeachers.find((teacher) => teacher.profileId === selectedTeacherProfileId) ?? null;
+
+  function openPairingModal(input?: {
+    studentProfileId?: string;
+    teacherProfileId?: string;
+  }) {
+    setSelectedStudentProfileId(input?.studentProfileId ?? "");
+    setSelectedTeacherProfileId(input?.teacherProfileId ?? "");
+    setPairingModalOpen(true);
+    setError("");
+  }
 
   function exportCsv() {
     const rows = [
@@ -151,20 +186,12 @@ export function AdminDashboard() {
         },
         {
           label: messages.admin.signups,
-          active: activeView === "signups",
-          onClick: () => startTransition(() => setActiveView("signups")),
+          active: activeView === "waiting",
+          onClick: () => startTransition(() => setActiveView("waiting")),
         },
       ]}
       headerActions={
-        activeView === "pairings" ? (
-          <button
-            type="button"
-            onClick={() => setPairingModalOpen(true)}
-            className="btn-primary px-4 py-2 text-sm font-semibold"
-          >
-            {messages.admin.newPairing}
-          </button>
-        ) : activeView === "progress" ? (
+        activeView === "progress" ? (
           <div className="flex gap-3">
             <button
               type="button"
@@ -181,7 +208,16 @@ export function AdminDashboard() {
               {messages.admin.print}
             </button>
           </div>
-        ) : null
+        ) : (
+          <button
+            type="button"
+            disabled={pairingDisabled}
+            onClick={() => openPairingModal()}
+            className="btn-primary px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {messages.admin.newPairing}
+          </button>
+        )
       }
     >
       {isLoading ? (
@@ -228,11 +264,11 @@ export function AdminDashboard() {
                 {visiblePairings.map((pairing) => (
                   <tr key={pairing.id} className="group hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-4">
-                      <div className="font-bold text-[var(--color-text-main)] group-hover:text-[var(--color-text-main)] transition-colors">{pairing.student?.name ?? "-"}</div>
+                      <div className="font-bold text-[var(--color-text-main)]">{pairing.student?.name ?? "-"}</div>
                       <div className="mt-1 text-xs font-medium text-[var(--color-text-secondary)]">{pairing.student?.contact ?? ""}</div>
                     </td>
                     <td className="px-5 py-4 text-[var(--color-text-secondary)] font-medium">{pairing.student?.username ?? "-"}</td>
-                    <td className="px-5 py-4 font-bold text-[var(--color-text-main)] group-hover:text-[var(--color-text-main)] transition-colors">{pairing.teacher?.name ?? "-"}</td>
+                    <td className="px-5 py-4 font-bold text-[var(--color-text-main)]">{pairing.teacher?.name ?? "-"}</td>
                     <td className="px-5 py-4 text-[var(--color-text-secondary)] font-medium">{pairing.teacher?.username ?? "-"}</td>
                     <td className="px-5 py-4">
                       <button
@@ -315,159 +351,177 @@ export function AdminDashboard() {
         </section>
       ) : null}
 
-      {activeView === "signups" ? (
-        <section className="space-y-6">
-          <div className="flex flex-wrap gap-2.5">
-            {(["all", "pending", "approved", "rejected"] as const).map((filter) => (
-              <button
-                key={filter}
-                type="button"
-                aria-pressed={signupFilter === filter}
-                onClick={() => {
-                  setSignupFilter(filter);
-                  setSignupPage(1);
-                }}
-                className={`rounded-[var(--radius-md)] px-5 py-2.5 text-sm font-bold transition-all ${
-                  signupFilter === filter
-                    ? "bg-[var(--color-text-main)] text-white"
-                    : "border border-[var(--card-border)] bg-white text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)] hover:text-[var(--color-text-main)]"
-                }`}
-              >
-                {filter === "all"
-                  ? messages.admin.filterAll
-                  : filter === "pending"
-                    ? messages.admin.filterPending
-                    : filter === "approved"
-                      ? messages.admin.filterApproved
-                      : messages.admin.filterRejected}
-              </button>
-            ))}
-          </div>
-
-          <div className="overflow-x-auto dash-card">
-            <table className="min-w-[860px] w-full text-left text-sm">
-              <thead className="bg-[var(--color-bg-secondary)]">
-                <tr>
-                  <th className="px-5 py-4 font-semibold tracking-wide">{messages.admin.fields.name}</th>
-                  <th className="px-5 py-4 font-semibold tracking-wide">{messages.admin.fields.age}</th>
-                  <th className="px-5 py-4 font-semibold tracking-wide">{messages.admin.fields.phone}</th>
-                  <th className="px-5 py-4 font-semibold tracking-wide">{messages.admin.contact}</th>
-                  <th className="px-5 py-4 font-semibold tracking-wide">{messages.admin.status}</th>
-                  <th className="px-5 py-4 font-semibold tracking-wide">{messages.admin.submitted}</th>
-                  <th className="px-5 py-4 font-semibold tracking-wide">{messages.admin.actions}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--color-bg-secondary)]">
-                {(signupsQuery.data?.signups ?? []).map((signup) => (
-                  <tr key={signup.id} className="hover:bg-gray-50 transition-colors group">
-                    <td className="px-5 py-4 font-bold text-[var(--color-text-main)] group-hover:text-[var(--color-text-main)] transition-colors">{signup.childName}</td>
-                    <td className="px-5 py-4 font-medium">{signup.age}</td>
-                    <td className="px-5 py-4 font-medium">{signup.phone}</td>
-                    <td className="px-5 py-4 text-[var(--color-text-secondary)] font-medium">{signup.contact ?? "-"}</td>
-                    <td className="px-5 py-4">
-                      <span className={`status-chip ${
-                        signup.status === "approved"
-                          ? "success"
-                          : signup.status === "rejected"
-                            ? "danger"
-                            : "info"
-                      }`}>
-                        {formatSignupStatus(messages, signup.status)}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-[var(--color-text-secondary)] font-medium">
-                      {new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(signup.createdAt)}
-                    </td>
-                    <td className="px-5 py-4">
-                      {signup.status === "pending" ? (
-                        <div className="flex gap-2.5">
+      {activeView === "waiting" ? (
+        <section className="grid gap-6 xl:grid-cols-2">
+          <WaitingCard
+            title={messages.admin.pendingStudents}
+            emptyState={messages.admin.noPendingStudents}
+          >
+            {waitingStudents.length ? (
+              <table className="w-full text-left text-sm">
+                <thead className="bg-[var(--color-bg-secondary)]">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">{messages.admin.fields.name}</th>
+                    <th className="px-4 py-3 font-semibold">{messages.admin.fields.age}</th>
+                    <th className="px-4 py-3 font-semibold">{messages.admin.fields.phone}</th>
+                    <th className="px-4 py-3 font-semibold">{messages.admin.fields.username}</th>
+                    <th className="px-4 py-3 font-semibold">{messages.admin.actions}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--color-bg-secondary)]">
+                  {waitingStudents.map((student) => (
+                    <tr key={student.profileId}>
+                      <td className="px-4 py-4">
+                        <div className="font-bold text-[var(--color-text-main)]">{student.childName}</div>
+                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">{student.contact ?? "-"}</div>
+                      </td>
+                      <td className="px-4 py-4">{student.age}</td>
+                      <td className="px-4 py-4">{student.phone}</td>
+                      <td className="px-4 py-4">{student.username}</td>
+                      <td className="px-4 py-4">
+                        <div className="flex gap-2">
                           <button
                             type="button"
-                            onClick={() =>
-                              void reviewSignup.mutateAsync({
-                                id: signup.id,
-                                action: "approve",
-                                reason: "",
-                              })
-                            }
-                            className="btn-primary px-4 py-2 text-xs font-bold"
+                            onClick={() => openPairingModal({ studentProfileId: student.profileId })}
+                            className="btn-secondary px-3 py-2 text-xs font-bold"
                           >
-                            {messages.admin.approve}
+                            {messages.admin.matchNow}
                           </button>
                           <button
                             type="button"
-                            onClick={() => setRejectTargetId(signup.id)}
-                            className="rounded-[var(--radius-md)] border border-red-200 bg-red-50 hover:bg-red-100 px-4 py-2 text-xs font-bold text-red-600 transition-all"
+                            onClick={() =>
+                              setRejectTarget({
+                                name: student.childName,
+                                role: "student",
+                                signupId: student.signupId,
+                              })
+                            }
+                            className="rounded-[var(--radius-md)] border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600"
                           >
                             {messages.admin.reject}
                           </button>
                         </div>
-                      ) : (
-                        <span className="text-xs font-medium text-[var(--color-text-secondary)] max-w-[150px] inline-block truncate" title={signup.rejectReason ?? messages.admin.reviewed}>
-                          {signup.rejectReason ?? messages.admin.reviewed}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : null}
+          </WaitingCard>
 
-          <Pagination
-            page={signupPage}
-            totalPages={signupsQuery.data?.pagination.totalPages ?? 1}
-            onChange={(page) => setSignupPage(page)}
-          />
+          <WaitingCard
+            title={messages.admin.pendingTeachers}
+            emptyState={messages.admin.noPendingTeachers}
+          >
+            {waitingTeachers.length ? (
+              <table className="w-full text-left text-sm">
+                <thead className="bg-[var(--color-bg-secondary)]">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">{messages.admin.fields.name}</th>
+                    <th className="px-4 py-3 font-semibold">{messages.admin.fields.school}</th>
+                    <th className="px-4 py-3 font-semibold">{messages.admin.fields.grade}</th>
+                    <th className="px-4 py-3 font-semibold">{messages.admin.fields.username}</th>
+                    <th className="px-4 py-3 font-semibold">{messages.admin.actions}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--color-bg-secondary)]">
+                  {waitingTeachers.map((teacher) => (
+                    <tr key={teacher.profileId}>
+                      <td className="px-4 py-4">
+                        <div className="font-bold text-[var(--color-text-main)]">{teacher.name}</div>
+                        <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                          {teacher.gender} · {teacher.englishScore}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">{teacher.school}</td>
+                      <td className="px-4 py-4">{teacher.grade}</td>
+                      <td className="px-4 py-4">{teacher.username}</td>
+                      <td className="px-4 py-4">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openPairingModal({ teacherProfileId: teacher.profileId })}
+                            className="btn-secondary px-3 py-2 text-xs font-bold"
+                          >
+                            {messages.admin.matchNow}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setRejectTarget({
+                                name: teacher.name,
+                                role: "teacher",
+                                signupId: teacher.signupId,
+                              })
+                            }
+                            className="rounded-[var(--radius-md)] border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600"
+                          >
+                            {messages.admin.reject}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : null}
+          </WaitingCard>
         </section>
       ) : null}
 
       {isPairingModalOpen ? (
-        <Modal title={messages.admin.createPairing} onClose={() => setPairingModalOpen(false)}>
+        <Modal
+          title={messages.admin.createPairing}
+          onClose={() => {
+            setPairingModalOpen(false);
+            setSelectedStudentProfileId("");
+            setSelectedTeacherProfileId("");
+          }}
+        >
           <form
-            className="grid gap-6"
+            className="grid gap-5"
             onSubmit={(event) => {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
               void createPairing.mutateAsync({
-                student: {
-                  name: readFormString(form, "studentName"),
-                  username: readFormString(form, "studentUsername"),
-                  email: readFormString(form, "studentEmail"),
-                  password: readFormString(form, "studentPassword"),
-                  contact: readFormString(form, "studentContact"),
-                },
-                teacher: {
-                  name: readFormString(form, "teacherName"),
-                  username: readFormString(form, "teacherUsername"),
-                  email: readFormString(form, "teacherEmail"),
-                  password: readFormString(form, "teacherPassword"),
-                  contact: readFormString(form, "teacherContact"),
-                },
+                studentProfileId: readFormString(form, "studentProfileId"),
+                teacherProfileId: readFormString(form, "teacherProfileId"),
               });
             }}
           >
-            <fieldset className="grid gap-3 dash-card p-5 bg-[var(--color-bg-secondary)]/30 border border-[var(--color-bg-secondary)]">
-              <legend className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-primary)] px-2 bg-white rounded-full mb-2 border border-[var(--color-bg-secondary)] inline-block w-fit">
-                {messages.admin.student}
-              </legend>
-              <Field label={messages.admin.fields.name} name="studentName" />
-              <Field label={messages.admin.fields.contact} name="studentContact" required={false} />
-              <Field label={messages.admin.fields.username} name="studentUsername" />
-              <Field label={messages.admin.fields.email} name="studentEmail" type="email" />
-              <Field label={messages.admin.fields.password} name="studentPassword" type="password" />
-            </fieldset>
+            <SelectField
+              label={messages.admin.student}
+              name="studentProfileId"
+              onChange={setSelectedStudentProfileId}
+              options={waitingStudents.map((student) => ({
+                label: `${student.childName} · ${student.username}`,
+                value: student.profileId,
+              }))}
+              value={selectedStudentProfileId}
+            />
+            <SelectField
+              label={messages.admin.teacher}
+              name="teacherProfileId"
+              onChange={setSelectedTeacherProfileId}
+              options={waitingTeachers.map((teacher) => ({
+                label: `${teacher.name} · ${teacher.username}`,
+                value: teacher.profileId,
+              }))}
+              value={selectedTeacherProfileId}
+            />
 
-            <fieldset className="grid gap-3 dash-card p-5 bg-[var(--color-bg-secondary)]/30 border border-[var(--color-bg-secondary)]">
-              <legend className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-primary)] px-2 bg-white rounded-full mb-2 border border-[var(--color-bg-secondary)] inline-block w-fit">
-                {messages.admin.teacher}
-              </legend>
-              <Field label={messages.admin.fields.name} name="teacherName" />
-              <Field label={messages.admin.fields.contact} name="teacherContact" required={false} />
-              <Field label={messages.admin.fields.username} name="teacherUsername" />
-              <Field label={messages.admin.fields.email} name="teacherEmail" type="email" />
-              <Field label={messages.admin.fields.password} name="teacherPassword" type="password" />
-            </fieldset>
+            {selectedStudent ? (
+              <div className="rounded-[var(--radius-md)] bg-[var(--color-bg-secondary)] px-4 py-3 text-sm text-[var(--color-text-secondary)]">
+                <strong className="text-[var(--color-text-main)]">{messages.admin.student}:</strong>{" "}
+                {selectedStudent.childName} · {selectedStudent.phone}
+              </div>
+            ) : null}
+            {selectedTeacher ? (
+              <div className="rounded-[var(--radius-md)] bg-[var(--color-bg-secondary)] px-4 py-3 text-sm text-[var(--color-text-secondary)]">
+                <strong className="text-[var(--color-text-main)]">{messages.admin.teacher}:</strong>{" "}
+                {selectedTeacher.name} · {selectedTeacher.school}
+              </div>
+            ) : null}
 
             <button
               type="submit"
@@ -480,8 +534,8 @@ export function AdminDashboard() {
         </Modal>
       ) : null}
 
-      {rejectTargetId ? (
-        <Modal title={messages.admin.rejectSignup} onClose={() => setRejectTargetId(null)}>
+      {rejectTarget ? (
+        <Modal title={`${messages.admin.rejectSignup}: ${rejectTarget.name}`} onClose={() => setRejectTarget(null)}>
           <div className="grid gap-5 dash-card p-4 bg-red-50/50 border border-red-100">
             <textarea
               value={rejectReason}
@@ -493,17 +547,29 @@ export function AdminDashboard() {
             />
             <button
               type="button"
-              disabled={reviewSignup.isPending}
-              onClick={() =>
-                void reviewSignup.mutateAsync({
-                  id: rejectTargetId,
+              disabled={reviewStudentSignup.isPending || reviewTeacherSignup.isPending}
+              onClick={() => {
+                if (!rejectTarget) return;
+                if (rejectTarget.role === "student") {
+                  void reviewStudentSignup.mutateAsync({
+                    action: "reject",
+                    id: rejectTarget.signupId,
+                    reason: rejectReason,
+                  });
+                  return;
+                }
+
+                void reviewTeacherSignup.mutateAsync({
                   action: "reject",
+                  id: rejectTarget.signupId,
                   reason: rejectReason,
-                })
-              }
+                });
+              }}
               className="btn-danger px-5 py-3.5 text-sm font-bold"
             >
-              {reviewSignup.isPending ? messages.student.submitting : messages.admin.confirmReject}
+              {reviewStudentSignup.isPending || reviewTeacherSignup.isPending
+                ? messages.student.submitting
+                : messages.admin.confirmReject}
             </button>
           </div>
         </Modal>
@@ -512,23 +578,54 @@ export function AdminDashboard() {
   );
 }
 
-function Field(props: {
+function WaitingCard(props: {
+  children: React.ReactNode;
+  emptyState: string;
+  title: string;
+}) {
+  return (
+    <div className="overflow-hidden dash-card">
+      <div className="border-b border-[var(--color-bg-secondary)] px-5 py-4">
+        <h2 className="font-[var(--font-title)] text-2xl text-[var(--color-text-main)]">{props.title}</h2>
+      </div>
+      {props.children ?? null}
+      {!props.children ? (
+        <div className="px-6 py-12 text-center text-sm font-medium text-[var(--color-text-secondary)]">
+          {props.emptyState}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SelectField(props: {
   label: string;
   name: string;
-  required?: boolean;
-  type?: string;
+  onChange: (value: string) => void;
+  options: Array<{ label: string; value: string }>;
+  value: string;
 }) {
   return (
     <label className="grid gap-2">
       <span className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
         {props.label}
       </span>
-      <input
-        required={props.required ?? true}
+      <select
         name={props.name}
-        type={props.type ?? "text"}
+        value={props.value}
+        onChange={(event) => props.onChange(event.target.value)}
+        required
         className="form-control"
-      />
+      >
+        <option value="" disabled>
+          Select...
+        </option>
+        {props.options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }
@@ -591,15 +688,6 @@ function statusAbbrev(status: string) {
 
 function formatWeekLabel(locale: "en" | "zh", weekNumber: number) {
   return locale === "zh" ? `第${weekNumber}周` : `Week ${weekNumber}`;
-}
-
-function formatSignupStatus(
-  messages: Messages,
-  status: "pending" | "approved" | "rejected",
-) {
-  if (status === "approved") return messages.admin.approved;
-  if (status === "rejected") return messages.admin.rejected;
-  return messages.admin.pending;
 }
 
 function formatLessonStatus(messages: Messages, status: string) {

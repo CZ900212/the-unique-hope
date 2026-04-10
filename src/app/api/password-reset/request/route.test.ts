@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  PasswordResetDeliveryError: class PasswordResetDeliveryError extends Error {
+    constructor(cause: unknown) {
+      super("Failed to deliver password reset email.", { cause });
+      this.name = "PasswordResetDeliveryError";
+    }
+  },
   consumeRateLimit: vi.fn(),
   extractClientIp: vi.fn(),
   requestPasswordReset: vi.fn(),
 }));
 
 vi.mock("~/server/auth/password-reset", () => ({
+  PasswordResetDeliveryError: mocks.PasswordResetDeliveryError,
   requestPasswordReset: mocks.requestPasswordReset,
 }));
 
@@ -88,6 +95,35 @@ describe("password reset request route", () => {
     expect(payload.status).toBeUndefined();
   });
 
+  it("collapses delivery failures into the same generic success response", async () => {
+    mocks.requestPasswordReset.mockRejectedValue(
+      new mocks.PasswordResetDeliveryError(
+        new Error("mail provider unavailable"),
+      ),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/password-reset/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          identifier: "teacher@example.com",
+          role: "teacher",
+        }),
+      }),
+    );
+    const payload = (await response.json()) as {
+      ok?: boolean;
+      error?: { code?: string };
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(payload.error).toBeUndefined();
+  });
+
   it("rejects admin password reset attempts with a fixed manual-reset message", async () => {
     const response = await POST(
       new Request("http://localhost/api/password-reset/request", {
@@ -111,7 +147,8 @@ describe("password reset request route", () => {
     expect(response.status).toBe(403);
     expect(payload.error).toEqual({
       code: "PASSWORD_RESET_DISABLED",
-      message: "Admin password resets are handled internally. Contact the system owner.",
+      message:
+        "Admin password resets are handled internally. Contact the system owner.",
     });
     expect(mocks.requestPasswordReset).not.toHaveBeenCalled();
   });

@@ -23,7 +23,12 @@ import {
 
 const BCRYPT_ROUNDS = 12;
 const TOKEN_BYTES = 32;
-const LOCAL_PREVIEW_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+const LOCAL_PREVIEW_HOSTNAMES = new Set([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "[::1]",
+]);
 
 type ResettableAccount = {
   email: string;
@@ -41,6 +46,13 @@ type PasswordResetConfirmInput = {
   password: string;
   token: string;
 };
+
+export class PasswordResetDeliveryError extends Error {
+  constructor(cause: unknown) {
+    super("Failed to deliver password reset email.", { cause });
+    this.name = "PasswordResetDeliveryError";
+  }
+}
 
 export function hashPasswordResetToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -133,10 +145,14 @@ async function findResettableAccount(
 async function persistPasswordResetToken(userId: string) {
   const rawToken = randomBytes(TOKEN_BYTES).toString("base64url");
   const tokenHash = hashPasswordResetToken(rawToken);
-  const expiresAt = new Date(Date.now() + env.PASSWORD_RESET_TOKEN_TTL_MINUTES * 60 * 1000);
+  const expiresAt = new Date(
+    Date.now() + env.PASSWORD_RESET_TOKEN_TTL_MINUTES * 60 * 1000,
+  );
 
   await db.transaction(async (tx) => {
-    await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, userId));
+    await tx
+      .delete(passwordResetTokens)
+      .where(eq(passwordResetTokens.userId, userId));
     await tx.insert(passwordResetTokens).values({
       userId,
       tokenHash,
@@ -166,18 +182,21 @@ export function createPasswordResetEmailContent(input: {
     text: [
       `Hello ${input.name},`,
       "",
-      `Use the link below to reset your ${env.NEXT_PUBLIC_APP_NAME} password:`,
+      `We received a request to reset your ${env.NEXT_PUBLIC_APP_NAME} password.`,
+      "Click the link below to set a new one:",
+      "",
       input.resetUrl,
       "",
       `This link expires in ${env.PASSWORD_RESET_TOKEN_TTL_MINUTES} minutes.`,
-      "If you did not request this reset, you can ignore this email.",
+      "If you didn't request this, you can safely ignore this email.",
     ].join("\n"),
     html: [
       `<p>Hello ${escapedName},</p>`,
-      `<p>Use the link below to reset your ${escapedAppName} password.</p>`,
+      `<p>We received a request to reset your ${escapedAppName} password.</p>`,
+      "<p>Click the link below to set a new one:</p>",
       `<p><a href="${escapedResetUrl}">${escapedResetUrl}</a></p>`,
       `<p>This link expires in ${env.PASSWORD_RESET_TOKEN_TTL_MINUTES} minutes.</p>`,
-      "<p>If you did not request this reset, you can ignore this email.</p>",
+      "<p>If you didn't request this, you can safely ignore this email.</p>",
     ].join(""),
   };
 }
@@ -228,7 +247,9 @@ export async function requestPasswordReset(input: PasswordResetRequestInput) {
 
   if (!emailConfigured) {
     const preview = await persistPasswordResetToken(account.userId);
-    console.info(`[password-reset] preview link for ${account.email}: ${preview.resetUrl}`);
+    console.info(
+      `[password-reset] preview link for ${account.email}: ${preview.resetUrl}`,
+    );
 
     return {
       status: "preview" as const,
@@ -236,11 +257,15 @@ export async function requestPasswordReset(input: PasswordResetRequestInput) {
   }
 
   const preview = await persistPasswordResetToken(account.userId);
-  await sendPasswordResetEmail({
-    email: account.email,
-    name: account.name,
-    resetUrl: preview.resetUrl,
-  });
+  try {
+    await sendPasswordResetEmail({
+      email: account.email,
+      name: account.name,
+      resetUrl: preview.resetUrl,
+    });
+  } catch (error) {
+    throw new PasswordResetDeliveryError(error);
+  }
 
   return { status: "queued" as const };
 }

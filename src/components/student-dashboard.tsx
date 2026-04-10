@@ -17,7 +17,11 @@ export function StudentDashboard() {
   const utils = api.useUtils();
   const dashboardQuery = api.student.dashboard.useQuery();
   const [currentWeek, setCurrentWeek] = useState(1);
-  const lessonQuery = api.student.lesson.useQuery(currentWeek);
+  const matchedDashboard = dashboardQuery.data?.matchingStatus === "matched" ? dashboardQuery.data : null;
+  const isMatched = Boolean(matchedDashboard);
+  const lessonQuery = api.student.lesson.useQuery(currentWeek, {
+    enabled: isMatched,
+  });
   const saveFeedback = api.student.saveFeedback.useMutation({
     onSuccess: async () => {
       await Promise.all([utils.student.lesson.invalidate(), utils.student.dashboard.invalidate()]);
@@ -31,7 +35,7 @@ export function StudentDashboard() {
   const [isPending, startTransition] = useTransition();
 
   const currentFeedback = lessonQuery.data?.feedback;
-  const feedbackAllowed = lessonQuery.data?.lesson.feedbackAllowed ?? false;
+  const feedbackAllowed = isMatched && (lessonQuery.data?.lesson.feedbackAllowed ?? false);
 
   useEffect(() => {
     setFeedbackText(currentFeedback?.text ?? "");
@@ -66,19 +70,31 @@ export function StudentDashboard() {
     });
   }
 
-  const weeks = dashboardQuery.data?.progress.weeks ?? [];
+  const weeks = matchedDashboard?.progress.weeks ?? [];
   const taughtCount = weeks.filter((week) => week.status === "taught").length;
-  const isLoading = dashboardQuery.isLoading || lessonQuery.isLoading;
-  const loadError = dashboardQuery.error ?? lessonQuery.error;
+  const isLoading = dashboardQuery.isLoading || (isMatched && lessonQuery.isLoading);
+  const loadError = dashboardQuery.error ?? (isMatched ? lessonQuery.error : null);
 
   return (
     <PortalShell
-      title={messages.student.title}
+      title={
+        dashboardQuery.data?.matchingStatus === "matched"
+          ? messages.student.title
+          : messages.student.pendingMatchTitle
+      }
       subtitle={messages.student.subtitle}
-      badge={taughtCount >= currentWeek - 1 ? messages.student.badgeOnTrack : messages.student.badgeInProgress}
+      badge={
+        dashboardQuery.data?.matchingStatus === "pending"
+          ? messages.teacher.statuses.pending
+          : dashboardQuery.data?.matchingStatus === "rejected"
+            ? messages.admin.rejected
+            : taughtCount >= currentWeek - 1
+              ? messages.student.badgeOnTrack
+              : messages.student.badgeInProgress
+      }
       navItems={[
         { label: messages.student.myJourney, active: true },
-        { label: messages.student.meetingLink, onClick: () => setMeetingOpen(true) },
+        ...(isMatched ? [{ label: messages.student.meetingLink, onClick: () => setMeetingOpen(true) }] : []),
       ]}
     >
       {isLoading ? (
@@ -96,6 +112,29 @@ export function StudentDashboard() {
           {message}
         </div>
       ) : null}
+
+      {!isLoading && dashboardQuery.data?.matchingStatus !== "matched" ? (
+        <section className="dash-card p-6 lg:p-8">
+          <h2 className="font-[var(--font-title)] text-2xl text-[var(--color-text-main)]">
+            {dashboardQuery.data?.matchingStatus === "rejected"
+              ? messages.student.rejectedMatchTitle
+              : messages.student.pendingMatchTitle}
+          </h2>
+          <p className="mt-4 text-sm leading-7 text-[var(--color-text-secondary)]">
+            {dashboardQuery.data?.matchingStatus === "rejected"
+              ? messages.student.rejectedMatchBody
+              : messages.student.pendingMatchBody}
+          </p>
+          {dashboardQuery.data?.matchingStatus === "rejected" && dashboardQuery.data.rejectReason ? (
+            <div className="mt-5 rounded-[var(--radius-md)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {dashboardQuery.data.rejectReason}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {dashboardQuery.data?.matchingStatus !== "matched" ? null : (
+        <>
 
       <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <section className="dash-card p-6 lg:p-8">
@@ -239,6 +278,8 @@ export function StudentDashboard() {
           onClose={() => setMeetingOpen(false)}
         />
       ) : null}
+        </>
+      )}
     </PortalShell>
   );
 }

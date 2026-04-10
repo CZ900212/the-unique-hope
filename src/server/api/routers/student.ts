@@ -11,13 +11,29 @@ import { getMessages } from "~/lib/i18n";
 import { createTRPCRouter, roleProtectedProcedure } from "~/server/api/trpc";
 import { buildProtectedLessonEvidenceUrl } from "~/server/lesson-evidence";
 import { isStudentFeedbackAllowed } from "~/server/services/lesson-feedback";
-import { getPairingForStudent } from "~/server/services/pairings";
+import {
+  getStudentDashboardState,
+  requireMatchedStudentPairing,
+} from "~/server/services/pairings";
 
 const studentProcedure = roleProtectedProcedure("student");
 
 export const studentRouter = createTRPCRouter({
   dashboard: studentProcedure.query(async ({ ctx }) => {
-    const { pairing, profile } = await getPairingForStudent(ctx.session.user.id, ctx.locale);
+    const state = await getStudentDashboardState(ctx.session.user.id, ctx.locale);
+
+    if (state.matchingStatus !== "matched") {
+      return {
+        matchingStatus: state.matchingStatus,
+        rejectReason: state.matchingStatus === "rejected" ? state.rejectReason : "",
+        student: {
+          id: state.profile.id,
+          name: state.profile.name,
+        },
+      };
+    }
+
+    const { pairing, profile } = state;
     const byWeek = new Map(pairing.lessons.map((lesson) => [lesson.weekNumber, lesson]));
     const weeks = Array.from({ length: TOTAL_WEEKS }, (_, index) => {
       const weekNumber = index + 1;
@@ -31,6 +47,7 @@ export const studentRouter = createTRPCRouter({
     });
 
     return {
+      matchingStatus: state.matchingStatus,
       student: {
         id: profile.id,
         name: profile.name,
@@ -48,7 +65,10 @@ export const studentRouter = createTRPCRouter({
   lesson: studentProcedure
     .input(weekSchema)
     .query(async ({ ctx, input }) => {
-      const { pairing, profile } = await getPairingForStudent(ctx.session.user.id, ctx.locale);
+      const { pairing, profile } = await requireMatchedStudentPairing(
+        ctx.session.user.id,
+        ctx.locale,
+      );
 
       const lesson = await ctx.db.query.lessons.findFirst({
         where: and(eq(lessons.pairingId, pairing.id), eq(lessons.weekNumber, input)),
@@ -98,7 +118,10 @@ export const studentRouter = createTRPCRouter({
     .input(feedbackUpsertSchema)
     .mutation(async ({ ctx, input }) => {
       const messages = getMessages(ctx.locale);
-      const { pairing, profile } = await getPairingForStudent(ctx.session.user.id, ctx.locale);
+      const { pairing, profile } = await requireMatchedStudentPairing(
+        ctx.session.user.id,
+        ctx.locale,
+      );
       const lesson = await ctx.db.query.lessons.findFirst({
         where: and(eq(lessons.pairingId, pairing.id), eq(lessons.weekNumber, input.week)),
       });

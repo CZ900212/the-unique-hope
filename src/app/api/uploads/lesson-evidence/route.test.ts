@@ -8,9 +8,9 @@ const mocks = vi.hoisted(() => ({
   fileTypeFromBuffer: vi.fn(),
   findTeacherLesson: vi.fn(),
   getBlobReadWriteToken: vi.fn(),
-  getPairingForTeacher: vi.fn(),
   loadActiveUserSession: vi.fn(),
   put: vi.fn(),
+  requireMatchedTeacherPairing: vi.fn(),
   upsertTeacherLessonRecord: vi.fn(),
 }));
 
@@ -43,7 +43,7 @@ vi.mock("~/server/lesson-evidence", () => ({
 }));
 
 vi.mock("~/server/services/pairings", () => ({
-  getPairingForTeacher: mocks.getPairingForTeacher,
+  requireMatchedTeacherPairing: mocks.requireMatchedTeacherPairing,
 }));
 
 vi.mock("~/server/services/teacher-lessons", () => ({
@@ -71,7 +71,7 @@ describe("lesson evidence upload route", () => {
         role: "teacher",
       },
     });
-    mocks.getPairingForTeacher.mockResolvedValue({
+    mocks.requireMatchedTeacherPairing.mockResolvedValue({
       pairing: {
         id: "pairing-1",
       },
@@ -152,7 +152,7 @@ describe("lesson evidence upload route", () => {
 
     expect(response.status).toBe(500);
     expect(payload.error.code).toBe("LESSON_SAVE_FAILED");
-    expect(payload.error.message).toBe("Unable to upload lesson evidence right now.");
+    expect(payload.error.message).toBe("Couldn't upload the lesson photo. Please try again.");
     expect(mocks.del).toHaveBeenCalledWith("lessons/pairing-1/week-4/new.png", {
       token: "blob-token",
     });
@@ -186,10 +186,10 @@ describe("lesson evidence upload route", () => {
   });
 
   it("returns a structured 404 when the teacher has no assigned pairing", async () => {
-    mocks.getPairingForTeacher.mockRejectedValue(
+    mocks.requireMatchedTeacherPairing.mockRejectedValue(
       new TRPCError({
         code: "NOT_FOUND",
-        message: "Teacher has no assigned student",
+        message: "Tutor has no assigned tutee",
       }),
     );
 
@@ -199,7 +199,7 @@ describe("lesson evidence upload route", () => {
     expect(response.status).toBe(404);
     expect(payload.error).toEqual({
       code: "PAIRING_NOT_FOUND",
-      message: "Teacher has no assigned student",
+      message: "Tutor has no assigned tutee",
     });
   });
 });

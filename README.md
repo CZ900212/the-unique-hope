@@ -88,7 +88,24 @@ npm run db:push
 npm run db:studio
 npm run seed
 npm run admin:reset-password -- --identifier admin@theuniquehope.org
+npm run import:student-inquiries:check -- --input scripts/student-inquiries.example.json
+npm run import:student-inquiries -- --input imports/student-inquiries.json
 ```
+
+学生咨询导入说明：
+
+- 先执行 `npm run db:push`，把新的学生咨询表结构同步到数据库
+- 先用 `npm run import:student-inquiries:check -- --input scripts/student-inquiries.example.json` 看示例格式
+- 把受保护的 JSON 文件放在仓库根目录的 `imports/` 下，或通过 `--input <path>` / `STUDENT_INQUIRIES_FILE` 指定路径
+- 正式导入前，可先运行 `npm run import:student-inquiries:check -- --input <你的文件路径>` 做预检查；这一步不会写数据库
+- 预检查通过后，再运行 `npm run import:student-inquiries -- --input <你的文件路径>` 正式导入
+- `imports/` 已加入 `.gitignore`，避免把原始报名资料提交进仓库
+- 每条记录至少需要：`sourceChannel`、`sourceSerial`、`sourceSubmittedAt`、`studentName`、`gender`、`school`、`grade`、`englishScore`
+- `sourceSerial` 必须写成字符串，保留外部系统里的原始编号；不要写成 JSON 数字，避免大号编号精度丢失或前导零被吃掉
+- 如需从原始 IP 导入，请先在 `.env` 里设置 `STUDENT_INQUIRIES_IP_HASH_KEY`
+- IP 不会以明文写入数据库；脚本会把 `sourceIp` 转成带密钥的 HMAC-SHA256 摘要后保存
+- 如果上游已经做过预处理，可以直接提供 `sourceIpHash`，格式必须是 `hmac-sha256:<64位十六进制>`
+- 去重与更新规则使用 `sourceChannel + sourceSerial`，避免不同来源的同号记录互相覆盖
 
 ## 质量检查
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { LocaleSwitcher } from "~/components/locale-switcher";
+import { SiteComplianceFooter } from "~/components/site-compliance-footer";
 import { getMessages } from "~/lib/i18n";
 import { getActiveUserSession } from "~/server/auth/active-session";
 import { getServerLocale } from "~/server/locale";
@@ -27,7 +28,7 @@ export default async function HomePage() {
           <div className="flex items-center gap-3">
             <LocaleSwitcher locale={locale} />
             <Link
-              href="/signup"
+              href="/signup?role=student"
               className="btn-outline px-5 py-2.5 text-sm font-semibold"
             >
               {messages.landing.headerSignup}
@@ -60,7 +61,7 @@ export default async function HomePage() {
             </p>
             <div className="mt-12 flex flex-wrap gap-4">
               <Link
-                href="/signup"
+                href="/signup?role=student"
                 className="btn-primary px-8 py-4 text-base font-semibold"
               >
                 {messages.landing.ctaApply}
@@ -160,16 +161,21 @@ export default async function HomePage() {
                 <Link href="/login" className="text-sm font-medium text-emerald-200/80 transition-colors hover:text-white">
                   {messages.landing.headerLogin}
                 </Link>
-                <Link href="/signup" className="text-sm font-medium text-emerald-200/80 transition-colors hover:text-white">
+                <Link href="/signup?role=student" className="text-sm font-medium text-emerald-200/80 transition-colors hover:text-white">
                   {messages.landing.headerSignup}
                 </Link>
               </div>
             </div>
           </div>
           <div className="mt-10 border-t border-emerald-800 pt-6">
-            <p className="text-sm text-emerald-300/60">
-              &copy; {new Date().getFullYear()} {messages.common.appName}. {messages.common.growingTogether}
-            </p>
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <p className="text-sm text-emerald-300/60">
+                &copy; {new Date().getFullYear()} {messages.common.appName}. {messages.common.growingTogether}
+              </p>
+              <div className="[&_a]:text-emerald-200 [&_a:hover]:text-white [&>div]:text-emerald-300/70">
+                <SiteComplianceFooter locale={locale} />
+              </div>
+            </div>
           </div>
         </div>
       </footer>

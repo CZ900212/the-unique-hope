@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 
 import { forgotPasswordSchema } from "~/lib/domain";
 import { getMessages } from "~/lib/i18n";
-import { requestPasswordReset } from "~/server/auth/password-reset";
+import {
+  PasswordResetDeliveryError,
+  requestPasswordReset,
+} from "~/server/auth/password-reset";
 import { getRequestLocale } from "~/server/locale";
 import { consumeRateLimit, extractClientIp } from "~/server/rate-limit";
 
@@ -79,7 +82,10 @@ export async function POST(request: Request) {
         status: 429,
         headers: {
           "Retry-After": String(
-            Math.max(byIp?.retryAfterSeconds ?? 0, byIdentifier.retryAfterSeconds),
+            Math.max(
+              byIp?.retryAfterSeconds ?? 0,
+              byIdentifier.retryAfterSeconds,
+            ),
           ),
         },
       },
@@ -114,6 +120,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof PasswordResetDeliveryError) {
+      console.error("[password-reset:request] delivery failed", error.cause);
+      return NextResponse.json({ ok: true });
+    }
+
     console.error("[password-reset:request]", error);
     return NextResponse.json(
       {

@@ -5,9 +5,13 @@ import { SignupForm } from "~/components/signup-form";
 import { getMessages } from "~/lib/i18n";
 import { getServerLocale } from "~/server/locale";
 
-export default async function SignupPage() {
+export default async function SignupPage(props: {
+  searchParams?: Promise<{ role?: string }>;
+}) {
   const locale = await getServerLocale();
   const messages = getMessages(locale);
+  const searchParams = await props.searchParams;
+  const initialRole = searchParams?.role === "teacher" ? "teacher" : "student";
 
   return (
     <AuthPageShell
@@ -24,7 +28,7 @@ export default async function SignupPage() {
       }
       variant="accent"
     >
-      <SignupForm />
+      <SignupForm initialRole={initialRole} />
     </AuthPageShell>
   );
 }

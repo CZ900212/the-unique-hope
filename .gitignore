@@ -29,9 +29,12 @@ next-env.d.ts
 # misc
 .DS_Store
 *.pem
+key/
+project.md
 context.md
 .venv/
 /frontend/dist/
+/imports/
 /.claude/
 /.sisyphus/
 /output/

@@ -42,7 +42,9 @@ export function TeacherDashboard() {
   const [isPending, startTransition] = useTransition();
   const uploadHelpId = useId();
 
-  const lessons = dashboardQuery.data?.progress.lessons ?? [];
+  const matchedDashboard = dashboardQuery.data?.matchingStatus === "matched" ? dashboardQuery.data : null;
+  const isMatched = Boolean(matchedDashboard);
+  const lessons = matchedDashboard?.progress.lessons ?? [];
   const currentLesson = lessons.find((lesson) => lesson.week_number === currentWeek) ?? null;
   const isLoading = dashboardQuery.isLoading;
   const loadError = dashboardQuery.error;
@@ -122,19 +124,33 @@ export function TeacherDashboard() {
 
   return (
     <PortalShell
-      title={formatWeekLabel(locale, currentWeek, true)}
+      title={
+        dashboardQuery.data?.matchingStatus === "matched"
+          ? formatWeekLabel(locale, currentWeek, true)
+          : messages.teacher.pendingMatchTitle
+      }
       subtitle={messages.teacher.subtitle}
-      badge={messages.teacher.statuses[status] ?? status.replaceAll("_", " ")}
+      badge={
+        dashboardQuery.data?.matchingStatus === "pending"
+          ? messages.teacher.statuses.pending
+          : dashboardQuery.data?.matchingStatus === "rejected"
+            ? messages.admin.rejected
+            : messages.teacher.statuses[status] ?? status.replaceAll("_", " ")
+      }
       navItems={[
         { label: messages.teacher.weeklyLessons, active: true },
-        { label: messages.teacher.badgeGuidelines, onClick: () => setGuidelinesOpen(true) },
-        {
-          label: messages.teacher.badgeMeetingLink,
-          onClick: () => {
-            setMeetingLink(dashboardQuery.data?.meetingLink ?? "");
-            setMeetingOpen(true);
-          },
-        },
+        ...(isMatched
+          ? [
+              { label: messages.teacher.badgeGuidelines, onClick: () => setGuidelinesOpen(true) },
+              {
+                label: messages.teacher.badgeMeetingLink,
+                onClick: () => {
+                  setMeetingLink(dashboardQuery.data?.meetingLink ?? "");
+                  setMeetingOpen(true);
+                },
+              },
+            ]
+          : []),
       ]}
     >
       {isLoading ? (
@@ -152,6 +168,29 @@ export function TeacherDashboard() {
           {message}
         </div>
       ) : null}
+
+      {!isLoading && dashboardQuery.data?.matchingStatus !== "matched" ? (
+        <section className="dash-card p-6 lg:p-8">
+          <h2 className="font-[var(--font-title)] text-2xl text-[var(--color-text-main)]">
+            {dashboardQuery.data?.matchingStatus === "rejected"
+              ? messages.teacher.rejectedMatchTitle
+              : messages.teacher.pendingMatchTitle}
+          </h2>
+          <p className="mt-4 text-sm leading-7 text-[var(--color-text-secondary)]">
+            {dashboardQuery.data?.matchingStatus === "rejected"
+              ? messages.teacher.rejectedMatchBody
+              : messages.teacher.pendingMatchBody}
+          </p>
+          {dashboardQuery.data?.matchingStatus === "rejected" && dashboardQuery.data.rejectReason ? (
+            <div className="mt-5 rounded-[var(--radius-md)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {dashboardQuery.data.rejectReason}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {dashboardQuery.data?.matchingStatus !== "matched" ? null : (
+        <>
 
       <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <section className="dash-card p-6 lg:p-8">
@@ -355,6 +394,8 @@ export function TeacherDashboard() {
           </div>
         </DashboardDialog>
       ) : null}
+        </>
+      )}
     </PortalShell>
   );
 }

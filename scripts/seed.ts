@@ -156,6 +156,19 @@ async function ensureDemoPairing(resetExistingPassword: boolean) {
       studentProfileId: student.profile.id,
     });
   }
+
+  await db
+    .update(profiles)
+    .set({
+      matchStatus: "matched",
+    })
+    .where(and(eq(profiles.id, teacher.profile.id), eq(profiles.role, "teacher")));
+  await db
+    .update(profiles)
+    .set({
+      matchStatus: "matched",
+    })
+    .where(and(eq(profiles.id, student.profile.id), eq(profiles.role, "student")));
 }
 
 async function main() {
