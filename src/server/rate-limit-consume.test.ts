@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+process.env.DATABASE_URL ??=
+  "postgres://postgres:postgres@localhost:5432/unique_hope_test";
+process.env.NEXT_PUBLIC_APP_NAME ??= "The Unique Hope";
+process.env.NEXT_PUBLIC_APP_URL ??= "http://localhost:3000";
+process.env.NEXT_PUBLIC_DEFAULT_LOCALE ??= "en";
+process.env.RATE_LIMIT_HASH_KEY ??= "test-rate-limit-hash-key";
+
 const mocks = vi.hoisted(() => ({
   deleteWhere: vi.fn(),
   deleteTable: vi.fn(),
@@ -37,7 +44,7 @@ vi.mock("~/server/db", () => ({
   },
 }));
 
-const { consumeRateLimit } = await import("./rate-limit");
+const { consumeRateLimit, hashRateLimitSubject } = await import("./rate-limit");
 
 describe("consumeRateLimit", () => {
   beforeEach(() => {
@@ -64,16 +71,22 @@ describe("consumeRateLimit", () => {
   });
 
   it("prunes expired buckets before incrementing the current bucket", async () => {
+    const subject = "+15551234567";
     const result = await consumeRateLimit({
       action: "signup:phone",
       limit: 2,
-      subject: "+15551234567",
+      subject,
       windowMs: 60 * 60 * 1000,
     });
 
     expect(mocks.deleteTable).toHaveBeenCalledTimes(1);
     expect(mocks.deleteWhere).toHaveBeenCalledTimes(1);
     expect(mocks.insertTable).toHaveBeenCalledTimes(1);
+    expect(mocks.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subjectHash: hashRateLimitSubject(subject),
+      }),
+    );
     expect(result.allowed).toBe(true);
     expect(result.remaining).toBe(1);
     expect(typeof result.retryAfterSeconds).toBe("number");

@@ -1,6 +1,6 @@
 import { AuthPageShell } from "~/components/auth-page-shell";
 import { PasswordResetConfirmForm } from "~/components/password-reset-confirm-form";
-import { getServerLocale } from "~/server/locale";
+import { getServerLocale } from "~/server/server-locale";
 
 export default async function ResetPasswordPage(props: {
   searchParams?: Promise<{ token?: string }>;

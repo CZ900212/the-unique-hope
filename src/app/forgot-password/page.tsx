@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 
 import { AuthPageShell } from "~/components/auth-page-shell";
-import { PasswordResetRequestForm } from "~/components/password-reset-request-form";
+import { PasswordResetEmailRequestForm } from "~/components/password-reset-request-form";
 import { getActiveUserSession } from "~/server/auth/active-session";
-import { getServerLocale } from "~/server/locale";
+import { getServerLocale } from "~/server/server-locale";
 
 export default async function ForgotPasswordPage() {
   const locale = await getServerLocale();
@@ -14,7 +14,7 @@ export default async function ForgotPasswordPage() {
 
   return (
     <AuthPageShell locale={locale} variant="plain">
-      <PasswordResetRequestForm />
+      <PasswordResetEmailRequestForm />
     </AuthPageShell>
   );
 }

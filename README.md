@@ -2,7 +2,7 @@
 
 当前激活的应用是仓库根目录下的单体 `Next.js` 项目，采用 T3 风格技术栈：
 
-- `Next.js 15` App Router
+- `Next.js 16` App Router
 - `tRPC 11`
 - `Auth.js / NextAuth`
 - `Drizzle ORM`
@@ -17,11 +17,11 @@
 - `src/lib`: 领域模型、表单与通用工具
 - `scripts`: 数据迁移、种子数据等脚本
 
-仓库里仍保留了 `frontend/`、`backend/` 等旧目录作为迁移归档参考；当前唯一的发版/部署目标是仓库根目录的 Next.js 服务。
-
 ## 本地启动
 
 1. 安装依赖
+
+请使用 Node.js 24（仓库 `.nvmrc` 已指定）。
 
 ```bash
 npm install
@@ -40,6 +40,7 @@ cp .env.example .env
 - `NEXT_PUBLIC_APP_URL`
 - `NEXT_PUBLIC_APP_NAME`
 - `NEXT_PUBLIC_DEFAULT_LOCALE`
+- `RATE_LIMIT_HASH_KEY`
 - `SEED_ADMIN_PASSWORD`（首次执行 `npm run seed` 前请改成唯一密码）
 
 3. 初始化数据库
@@ -58,7 +59,9 @@ npm run seed
 
 - `.env.example` 默认关闭 `SEED_DEMO_DATA`，避免把演示账号带进正式环境
 - 已存在账号的密码默认不会被重置；只有设置 `SEED_RESET_EXISTING_PASSWORDS=true` 时才会轮换
+- `RATE_LIMIT_HASH_KEY` 应设置为足够长的随机字符串，用来对限流对象做带密钥摘要，避免手机号、用户名、IP 被直接反推
 - `RATE_LIMIT_TRUST_FORWARD_HEADERS` 只应在可信反向代理会重写转发 IP 头时开启
+- `TRPC_TIMING_LOGS=true` 可在非开发环境临时打开 tRPC 接口耗时日志；默认关闭
 
 4. 启动开发服务器
 
@@ -88,6 +91,8 @@ npm run db:push
 npm run db:studio
 npm run seed
 npm run admin:reset-password -- --identifier admin@theuniquehope.org
+npm run web-push:prepare
+npm run web-push:check
 npm run import:student-inquiries:check -- --input scripts/student-inquiries.example.json
 npm run import:student-inquiries -- --input imports/student-inquiries.json
 ```
@@ -115,6 +120,8 @@ npm run import:student-inquiries -- --input imports/student-inquiries.json
 npm run lint
 npm run typecheck
 npm run test
+npm run build
+npm run test:e2e
 ```
 
 ## 上传与密码重置
@@ -123,6 +130,7 @@ npm run test
 - 密码重置邮件依赖 `RESEND_API_KEY` 与 `PASSWORD_RESET_FROM_EMAIL`
 - admin 使用专用入口 `/admin/login` 登录，不通过公开成员登录页
 - admin 不再提供公开网页找回密码；需要时请使用 `npm run admin:reset-password -- --identifier <email|username>`
+- 浏览器 Web Push 上线前，先运行 `npm run web-push:prepare` 生成生产环境变量，再用 `npm run web-push:check:production` 检查配置与通知表；正式验证完成前保持 `WEB_PUSH_ENABLED=false`
 
 未配置邮件时，非生产环境会返回密码重置预览链接用于本地调试。
 
@@ -131,5 +139,3 @@ npm run test
 生产部署请优先参考 [DEPLOYMENT.md](./DEPLOYMENT.md)。
 
 当前发布面以仓库根目录应用为准，执行路径是根目录的 `npm run build` 与 `npm run start`。
-
-旧的 `frontend/`、`backend/`、`frontend/dist` 以及相关本地归档 QA 流程仅保留作历史参考，不再作为生产 shipping target。

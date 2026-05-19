@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
-  getBlobReadWriteToken: vi.fn(),
+  getLessonEvidenceStorageMode: vi.fn(),
 }));
 
 vi.mock("~/server/db", () => ({
@@ -12,7 +12,7 @@ vi.mock("~/server/db", () => ({
 }));
 
 vi.mock("~/server/lesson-evidence", () => ({
-  getBlobReadWriteToken: mocks.getBlobReadWriteToken,
+  getLessonEvidenceStorageMode: mocks.getLessonEvidenceStorageMode,
 }));
 
 const { GET } = await import("./route");
@@ -21,7 +21,7 @@ describe("health route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => undefined);
-    mocks.getBlobReadWriteToken.mockReturnValue("blob-token");
+    mocks.getLessonEvidenceStorageMode.mockReturnValue("local");
   });
 
   it("returns 200 when the database probe succeeds", async () => {

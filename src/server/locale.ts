@@ -1,13 +1,8 @@
-import { headers } from "next/headers";
-
-import { DEFAULT_LOCALE, resolveLocale, resolveRequestLocale } from "~/lib/i18n";
-
-export async function getServerLocale() {
-  return resolveRequestLocale(
-    await headers(),
-    process.env.NEXT_PUBLIC_DEFAULT_LOCALE ?? DEFAULT_LOCALE,
-  );
-}
+import {
+  DEFAULT_LOCALE,
+  resolveLocale,
+  resolveRequestLocale,
+} from "~/lib/i18n";
 
 export function getRequestLocale(headersLike: Pick<Headers, "get">) {
   return resolveRequestLocale(
@@ -17,5 +12,7 @@ export function getRequestLocale(headersLike: Pick<Headers, "get">) {
 }
 
 export function getDefaultServerLocale() {
-  return resolveLocale(process.env.NEXT_PUBLIC_DEFAULT_LOCALE ?? DEFAULT_LOCALE);
+  return resolveLocale(
+    process.env.NEXT_PUBLIC_DEFAULT_LOCALE ?? DEFAULT_LOCALE,
+  );
 }

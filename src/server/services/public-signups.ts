@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 
+import { normalizeUsername } from "~/lib/domain";
 import { getMessages, type Locale } from "~/lib/i18n";
 import { consumeRateLimit, extractClientIp } from "~/server/rate-limit";
 
@@ -8,18 +9,20 @@ function normalizeSignupPhone(phone: string) {
   return compact.length > 0 ? compact : phone.trim();
 }
 
-export async function enforcePublicSignupRateLimit(
-  headers: Headers,
-  phone: string,
-  locale: Locale,
-) {
-  const messages = getMessages(locale);
-  const clientIp = extractClientIp(headers);
-  const [byPhone, byIp] = await Promise.all([
+async function enforceSignupRateLimit(input: {
+  action: string;
+  headers: Headers;
+  limit: number;
+  locale: Locale;
+  subject: string;
+}) {
+  const messages = getMessages(input.locale);
+  const clientIp = extractClientIp(input.headers);
+  const [bySubject, byIp] = await Promise.all([
     consumeRateLimit({
-      action: "signup:phone",
-      limit: 2,
-      subject: normalizeSignupPhone(phone),
+      action: input.action,
+      limit: input.limit,
+      subject: input.subject,
       windowMs: 60 * 60 * 1000,
     }),
     clientIp
@@ -32,10 +35,38 @@ export async function enforcePublicSignupRateLimit(
       : Promise.resolve(null),
   ]);
 
-  if (!byPhone.allowed || (byIp && !byIp.allowed)) {
+  if (!bySubject.allowed || (byIp && !byIp.allowed)) {
     throw new TRPCError({
       code: "TOO_MANY_REQUESTS",
       message: messages.errors.signupTooManyRequests,
     });
   }
+}
+
+export async function enforcePublicSignupRateLimit(
+  headers: Headers,
+  phone: string,
+  locale: Locale,
+) {
+  await enforceSignupRateLimit({
+    action: "signup:phone",
+    headers,
+    limit: 2,
+    locale,
+    subject: normalizeSignupPhone(phone),
+  });
+}
+
+export async function enforceTeacherSignupRateLimit(
+  headers: Headers,
+  username: string,
+  locale: Locale,
+) {
+  await enforceSignupRateLimit({
+    action: "signup:username",
+    headers,
+    limit: 2,
+    locale,
+    subject: normalizeUsername(username),
+  });
 }

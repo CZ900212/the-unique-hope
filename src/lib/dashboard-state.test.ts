@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { getDefaultStudentWeek, getDefaultTeacherWeek } from "./dashboard-state";
+import {
+  getDefaultStudentWeek,
+  getDefaultTeacherWeek,
+} from "./dashboard-state";
 
 describe("dashboard state helpers", () => {
   it("opens the teacher dashboard on the next week after the latest completed lesson", () => {
@@ -13,7 +16,9 @@ describe("dashboard state helpers", () => {
   });
 
   it("keeps the teacher on the latest recorded week when it is still pending", () => {
-    expect(getDefaultTeacherWeek([{ status: "pending", week_number: 4 }])).toBe(4);
+    expect(getDefaultTeacherWeek([{ status: "pending", week_number: 4 }])).toBe(
+      4,
+    );
   });
 
   it("opens the student dashboard on the latest taught week", () => {

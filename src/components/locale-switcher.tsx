@@ -23,7 +23,9 @@ export function LocaleSwitcher(props: { locale: Locale }) {
       }}
       className="rounded-[var(--radius-md)] border border-[var(--card-border)] bg-[var(--color-white)] px-4 py-2 text-sm font-semibold text-[var(--color-text-main)] shadow-sm transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary-dark)] disabled:cursor-not-allowed disabled:opacity-60"
       aria-label={
-        props.locale === "en" ? messages.common.switchToChinese : messages.common.switchToEnglish
+        props.locale === "en"
+          ? messages.common.switchToChinese
+          : messages.common.switchToEnglish
       }
     >
       {props.locale === "en" ? "中文" : "EN"}

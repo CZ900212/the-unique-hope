@@ -20,7 +20,11 @@ async function main() {
     .filter((value): value is string => Boolean(value));
 
   if (blobToken && blobKeys.length > 0) {
-    await Promise.all(blobKeys.map((blobKey) => del(blobKey, { token: blobToken }).catch(() => null)));
+    await Promise.all(
+      blobKeys.map((blobKey) =>
+        del(blobKey, { token: blobToken }).catch(() => null),
+      ),
+    );
   }
 
   await db

@@ -31,7 +31,9 @@ export function AppDialog(props: {
 
   useEffect(() => {
     previousFocusRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -80,18 +82,21 @@ export function AppDialog(props: {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/20 p-4 animate-in fade-in duration-300">
+    <div className="animate-in fade-in fixed inset-0 z-50 grid place-items-center bg-black/20 p-4 duration-300">
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-x-hidden overflow-y-auto glass-card rounded-[var(--radius-lg)] p-6 md:p-8 animate-in zoom-in-95 duration-300"
+        className="glass-card animate-in zoom-in-95 relative max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-x-hidden overflow-y-auto rounded-[var(--radius-lg)] p-6 duration-300 md:p-8"
       >
-        <div className="absolute top-0 left-0 w-full h-2 bg-[var(--color-primary)]"></div>
+        <div className="absolute top-0 left-0 h-2 w-full bg-[var(--color-primary)]"></div>
         <div className="mb-6 flex items-center justify-between gap-4">
-          <h2 id={titleId} className="font-[var(--font-title)] text-3xl text-[var(--color-text-main)]">
+          <h2
+            id={titleId}
+            className="text-3xl font-[var(--font-title)] text-[var(--color-text-main)]"
+          >
             {props.title}
           </h2>
           <button

@@ -15,15 +15,23 @@ import {
   userCredentials,
   users,
 } from "~/server/db/schema";
-import { enforcePublicSignupRateLimit } from "~/server/services/public-signups";
+import {
+  enforcePublicSignupRateLimit,
+  enforceTeacherSignupRateLimit,
+} from "~/server/services/public-signups";
 
 const BCRYPT_ROUNDS = 12;
 
 function mapRegistrationError(error: unknown, locale: Locale) {
   const messages = getMessages(locale);
-  const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+  const code =
+    typeof error === "object" && error && "code" in error
+      ? String(error.code)
+      : "";
   const message =
-    typeof error === "object" && error && "message" in error ? String(error.message) : "";
+    typeof error === "object" && error && "message" in error
+      ? String(error.message)
+      : "";
 
   if (code === "23505" || message.includes("duplicate key")) {
     return new TRPCError({
@@ -42,12 +50,13 @@ function mapRegistrationError(error: unknown, locale: Locale) {
 
 async function createAccount(input: {
   contact?: string;
+  email?: string;
   name: string;
   password: string;
   role: "teacher" | "student";
   username: string;
 }) {
-  const email = toCanonicalEmail(undefined, input.username, input.role);
+  const email = toCanonicalEmail(input.email, input.username, input.role);
   const passwordHash = await hash(input.password, BCRYPT_ROUNDS);
 
   return {
@@ -76,6 +85,7 @@ export const publicRouter = createTRPCRouter({
       try {
         const account = await createAccount({
           contact: input.contact,
+          email: input.email,
           name: input.childName,
           password: input.password,
           role: "student",
@@ -83,7 +93,10 @@ export const publicRouter = createTRPCRouter({
         });
 
         const result = await ctx.db.transaction(async (tx) => {
-          const [user] = await tx.insert(users).values(account.userValues).returning();
+          const [user] = await tx
+            .insert(users)
+            .values(account.userValues)
+            .returning();
           const [profile] = await tx
             .insert(profiles)
             .values({
@@ -127,9 +140,16 @@ export const publicRouter = createTRPCRouter({
   createTeacherSignup: publicProcedure
     .input(teacherSignupSchema)
     .mutation(async ({ ctx, input }) => {
+      await enforceTeacherSignupRateLimit(
+        ctx.headers,
+        input.username,
+        ctx.locale,
+      );
+
       try {
         const account = await createAccount({
           contact: "",
+          email: input.email,
           name: input.name,
           password: input.password,
           role: "teacher",
@@ -137,7 +157,10 @@ export const publicRouter = createTRPCRouter({
         });
 
         const result = await ctx.db.transaction(async (tx) => {
-          const [user] = await tx.insert(users).values(account.userValues).returning();
+          const [user] = await tx
+            .insert(users)
+            .values(account.userValues)
+            .returning();
           const [profile] = await tx
             .insert(profiles)
             .values({

@@ -17,8 +17,8 @@ export function AuthPageShell(props: {
     <main
       className={
         isAccent
-          ? "relative flex min-h-screen items-start justify-center overflow-hidden bg-[linear-gradient(135deg,#ecfdf5_0%,#d1fae5_40%,#fafaf9_100%)] px-6 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-12"
-          : "relative flex min-h-screen items-start justify-center bg-[var(--color-bg-main)] px-6 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-12"
+          ? "relative flex min-h-screen items-start justify-center overflow-hidden bg-[linear-gradient(135deg,#ecfdf5_0%,#d1fae5_40%,#fafaf9_100%)] px-4 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-12"
+          : "relative flex min-h-screen items-start justify-center bg-[var(--color-bg-main)] px-4 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-12"
       }
     >
       {isAccent ? (
@@ -28,13 +28,15 @@ export function AuthPageShell(props: {
         </>
       ) : null}
 
-      <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6 lg:right-8 lg:top-8">
+      <div className="absolute top-4 right-4 z-10 sm:top-6 sm:right-6 lg:top-8 lg:right-8">
         <LocaleSwitcher locale={props.locale} />
       </div>
 
       <div className={`relative w-full ${widthClass}`}>
         {useCardChrome ? (
-          <div className="glass-card rounded-[var(--radius-lg)] p-6 sm:p-7 lg:p-8">{props.children}</div>
+          <div className="glass-card rounded-[var(--radius-lg)] p-6 sm:p-7 lg:p-8">
+            {props.children}
+          </div>
         ) : (
           props.children
         )}

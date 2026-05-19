@@ -1,9 +1,14 @@
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { and, eq } from "drizzle-orm";
-import { CredentialsSignin, type DefaultSession, type NextAuthConfig } from "next-auth";
+import {
+  CredentialsSignin,
+  type DefaultSession,
+  type NextAuthConfig,
+} from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 
+import { env } from "~/env";
 import { db } from "~/server/db";
 import {
   accounts,
@@ -48,6 +53,19 @@ declare module "@auth/core/jwt" {
 
 class RateLimitedSignInError extends CredentialsSignin {
   code = "rate_limited";
+}
+
+const authSiteUrl = new URL(env.AUTH_URL ?? env.NEXT_PUBLIC_APP_URL);
+const authSiteOrigin = authSiteUrl.origin;
+const authHomeUrl = new URL("/", authSiteUrl).toString();
+
+function resolveAuthRedirectUrl(url: string) {
+  try {
+    const parsed = new URL(url, authSiteUrl);
+    return parsed.origin === authSiteOrigin ? parsed.toString() : authHomeUrl;
+  } catch {
+    return authHomeUrl;
+  }
 }
 
 async function findProfileForLogin(identifierRaw: string, role: Role) {
@@ -102,6 +120,13 @@ async function findProfileForLogin(identifierRaw: string, role: Role) {
 }
 
 export const authConfig = {
+  // Trust the incoming host so Auth.js builds callback URLs from the real site origin.
+  trustHost:
+    env.AUTH_TRUST_HOST === "true"
+      ? true
+      : env.AUTH_TRUST_HOST === "false"
+        ? false
+        : env.NODE_ENV !== "production",
   adapter: DrizzleAdapter(db, {
     usersTable: users,
     accountsTable: accounts,
@@ -156,7 +181,10 @@ export const authConfig = {
           return null;
         }
 
-        const passwordValid = await compare(parsed.data.password, account.passwordHash);
+        const passwordValid = await compare(
+          parsed.data.password,
+          account.passwordHash,
+        );
         if (!passwordValid) {
           return null;
         }
@@ -166,14 +194,12 @@ export const authConfig = {
             action: "login:identifier",
             subject: `${parsed.data.role}:${identifier}`,
           }),
-          ...(clientIp
-            ? [
-                clearRateLimitBuckets({
-                  action: "login:ip",
-                  subject: clientIp,
-                }),
-              ]
-            : []),
+          clientIp
+            ? clearRateLimitBuckets({
+                action: "login:ip",
+                subject: clientIp,
+              })
+            : Promise.resolve(),
         ]);
 
         return {
@@ -189,12 +215,19 @@ export const authConfig = {
     }),
   ],
   callbacks: {
+    redirect: ({ url }) => resolveAuthRedirectUrl(url),
     jwt: ({ token, user }) => {
       if (user) {
-        token.authVersion = (user as typeof user & { authVersion?: number }).authVersion;
-        token.role = (user as typeof user & { role?: "admin" | "teacher" | "student" }).role;
+        token.authVersion = (
+          user as typeof user & { authVersion?: number }
+        ).authVersion;
+        token.role = (
+          user as typeof user & { role?: "admin" | "teacher" | "student" }
+        ).role;
         token.username = (user as typeof user & { username?: string }).username;
-        token.contact = (user as typeof user & { contact?: string | null }).contact;
+        token.contact = (
+          user as typeof user & { contact?: string | null }
+        ).contact;
       }
 
       return token;

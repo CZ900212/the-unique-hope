@@ -4,10 +4,11 @@ import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { loadActiveUserSession } from "~/server/auth/active-session";
 import { db } from "~/server/db";
-import { lessons, profiles } from "~/server/db/schema";
+import { lessons } from "~/server/db/schema";
 import {
-  getBlobReadWriteToken,
-  resolveStoredLessonEvidenceUrl,
+  getLessonEvidenceStorageMode,
+  isLocalLessonEvidenceKey,
+  resolveStoredLessonEvidence,
 } from "~/server/lesson-evidence";
 
 export async function GET(
@@ -24,18 +25,6 @@ export async function GET(
         },
       },
       { status: 401 },
-    );
-  }
-
-  if (!getBlobReadWriteToken()) {
-    return NextResponse.json(
-      {
-        error: {
-          code: "BLOB_NOT_CONFIGURED",
-          message: "Upload storage is not configured",
-        },
-      },
-      { status: 503 },
     );
   }
 
@@ -59,20 +48,12 @@ export async function GET(
     );
   }
 
-  let hasAccess = session.profile.role === "admin";
-  if (!hasAccess) {
-    const profile = await db.query.profiles.findFirst({
-      where: eq(profiles.userId, session.user.id),
-    });
-
-    if (profile) {
-      hasAccess =
-        (session.profile.role === "teacher" &&
-          lesson.pairing.teacherProfileId === profile.id) ||
-        (session.profile.role === "student" &&
-          lesson.pairing.studentProfileId === profile.id);
-    }
-  }
+  const hasAccess =
+    session.profile.role === "admin" ||
+    (session.profile.role === "teacher" &&
+      lesson.pairing.teacherProfileId === session.profile.id) ||
+    (session.profile.role === "student" &&
+      lesson.pairing.studentProfileId === session.profile.id);
 
   if (!hasAccess) {
     return NextResponse.json(
@@ -86,8 +67,26 @@ export async function GET(
     );
   }
 
-  const blobUrl = await resolveStoredLessonEvidenceUrl(lesson.evidenceKey);
-  if (!blobUrl) {
+  if (
+    !getLessonEvidenceStorageMode() &&
+    !isLocalLessonEvidenceKey(lesson.evidenceKey)
+  ) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "BLOB_NOT_CONFIGURED",
+          message: "Upload storage is not configured",
+        },
+      },
+      { status: 503 },
+    );
+  }
+
+  const storedEvidence = await resolveStoredLessonEvidence(
+    lesson.evidenceKey,
+    lesson.evidenceMime,
+  );
+  if (!storedEvidence) {
     return NextResponse.json(
       {
         error: {
@@ -99,12 +98,27 @@ export async function GET(
     );
   }
 
+  if (storedEvidence.kind === "local") {
+    const headers = new Headers();
+    headers.set(
+      "content-type",
+      storedEvidence.mime ?? lesson.evidenceMime ?? "application/octet-stream",
+    );
+    headers.set("cache-control", "private, no-store, max-age=0");
+    headers.set("content-length", String(storedEvidence.contentLength));
+
+    return new NextResponse(new Uint8Array(storedEvidence.buffer), {
+      status: 200,
+      headers,
+    });
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
 
   let upstream: Response;
   try {
-    upstream = await fetch(blobUrl, {
+    upstream = await fetch(storedEvidence.url, {
       cache: "no-store",
       signal: controller.signal,
     });

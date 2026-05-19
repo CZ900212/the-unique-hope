@@ -1,11 +1,22 @@
-import { del } from "@vercel/blob";
 import { TRPCError } from "@trpc/server";
-import { and, asc, count, eq, ilike, inArray, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 
 import {
   createPairingSchema,
+  deletePairingSchema,
   paginationSchema,
+  reviewedSignupsFilterSchema,
   signupReviewSchema,
 } from "~/lib/domain";
 import { getMessages, type Locale } from "~/lib/i18n";
@@ -16,22 +27,42 @@ import {
   teacherSignups,
 } from "~/server/db/schema";
 import { createTRPCRouter, roleProtectedProcedure } from "~/server/api/trpc";
-import { getBlobReadWriteToken } from "~/server/lesson-evidence";
+import {
+  createManualRecoveryResetUrl,
+  listManualRecoveryRequests,
+  rejectManualRecoveryRequest,
+} from "~/server/auth/manual-password-reset";
+import { deleteStoredLessonEvidence } from "~/server/lesson-evidence";
 import {
   buildAdminProgressReport,
+  serializeAdminPairingDetails,
   serializeAdminPairingProgress,
 } from "~/server/services/admin-progress";
+import { notifyPairingCreated } from "~/server/services/notifications";
 
 const adminProcedure = roleProtectedProcedure("admin");
 const listPairingsSchema = paginationSchema.extend({
   search: z.string().trim().max(255).optional().default(""),
 });
+const markRecoveryRequestSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(["rejected"]),
+});
+const createRecoveryResetLinkSchema = z.object({
+  requestId: z.string().uuid(),
+  userId: z.string().min(1),
+});
 
 function mapDatabaseError(error: unknown, locale: Locale) {
   const messages = getMessages(locale);
-  const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+  const code =
+    typeof error === "object" && error && "code" in error
+      ? String(error.code)
+      : "";
   const message =
-    typeof error === "object" && error && "message" in error ? String(error.message) : "";
+    typeof error === "object" && error && "message" in error
+      ? String(error.message)
+      : "";
 
   if (code === "23505" || message.includes("duplicate key")) {
     return new TRPCError({
@@ -54,20 +85,21 @@ export const adminRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const messages = getMessages(ctx.locale);
 
-      const [studentProfile, teacherProfile, studentSignup, teacherSignup] = await Promise.all([
-        ctx.db.query.profiles.findFirst({
-          where: eq(profiles.id, input.studentProfileId),
-        }),
-        ctx.db.query.profiles.findFirst({
-          where: eq(profiles.id, input.teacherProfileId),
-        }),
-        ctx.db.query.studentSignups.findFirst({
-          where: eq(studentSignups.profileId, input.studentProfileId),
-        }),
-        ctx.db.query.teacherSignups.findFirst({
-          where: eq(teacherSignups.profileId, input.teacherProfileId),
-        }),
-      ]);
+      const [studentProfile, teacherProfile, studentSignup, teacherSignup] =
+        await Promise.all([
+          ctx.db.query.profiles.findFirst({
+            where: eq(profiles.id, input.studentProfileId),
+          }),
+          ctx.db.query.profiles.findFirst({
+            where: eq(profiles.id, input.teacherProfileId),
+          }),
+          ctx.db.query.studentSignups.findFirst({
+            where: eq(studentSignups.profileId, input.studentProfileId),
+          }),
+          ctx.db.query.teacherSignups.findFirst({
+            where: eq(teacherSignups.profileId, input.teacherProfileId),
+          }),
+        ]);
 
       if (studentProfile?.role !== "student") {
         throw new TRPCError({
@@ -90,14 +122,30 @@ export const adminRouter = createTRPCRouter({
         });
       }
 
-      if (studentSignup.status !== "pending" || teacherSignup.status !== "pending") {
+      if (
+        studentSignup.status !== "approved" ||
+        teacherSignup.status !== "approved"
+      ) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: messages.errors.pairingRequiresApprovedSignups,
+        });
+      }
+
+      if (
+        !["pending", "approved"].includes(studentSignup.status) ||
+        !["pending", "approved"].includes(teacherSignup.status)
+      ) {
         throw new TRPCError({
           code: "CONFLICT",
           message: messages.errors.pairingSelectionUnavailable,
         });
       }
 
-      if (studentProfile.matchStatus !== "pending" || teacherProfile.matchStatus !== "pending") {
+      if (
+        studentProfile.matchStatus !== "pending" ||
+        teacherProfile.matchStatus !== "pending"
+      ) {
         throw new TRPCError({
           code: "CONFLICT",
           message: messages.errors.pairingSelectionUnavailable,
@@ -119,24 +167,9 @@ export const adminRouter = createTRPCRouter({
             .set({
               matchStatus: "matched",
             })
-            .where(inArray(profiles.id, [studentProfile.id, teacherProfile.id]));
-
-          await tx
-            .update(studentSignups)
-            .set({
-              rejectReason: "",
-              reviewedAt: new Date(),
-              status: "approved",
-            })
-            .where(eq(studentSignups.profileId, studentProfile.id));
-          await tx
-            .update(teacherSignups)
-            .set({
-              rejectReason: "",
-              reviewedAt: new Date(),
-              status: "approved",
-            })
-            .where(eq(teacherSignups.profileId, teacherProfile.id));
+            .where(
+              inArray(profiles.id, [studentProfile.id, teacherProfile.id]),
+            );
 
           return tx.query.pairings.findFirst({
             where: eq(pairings.id, pairing!.id),
@@ -153,6 +186,8 @@ export const adminRouter = createTRPCRouter({
             message: messages.errors.unexpectedDatabase,
           });
         }
+
+        await notifyPairingCreated(result);
 
         return {
           pairing: {
@@ -189,6 +224,7 @@ export const adminRouter = createTRPCRouter({
           phone: studentSignups.phone,
           profileId: profiles.id,
           signupId: studentSignups.id,
+          status: studentSignups.status,
           username: profiles.username,
         })
         .from(studentSignups)
@@ -197,7 +233,7 @@ export const adminRouter = createTRPCRouter({
           and(
             eq(profiles.role, "student"),
             eq(profiles.matchStatus, "pending"),
-            eq(studentSignups.status, "pending"),
+            inArray(studentSignups.status, ["pending", "approved"]),
           ),
         )
         .orderBy(asc(studentSignups.createdAt)),
@@ -211,6 +247,7 @@ export const adminRouter = createTRPCRouter({
           profileId: profiles.id,
           school: teacherSignups.school,
           signupId: teacherSignups.id,
+          status: teacherSignups.status,
           username: profiles.username,
         })
         .from(teacherSignups)
@@ -219,7 +256,7 @@ export const adminRouter = createTRPCRouter({
           and(
             eq(profiles.role, "teacher"),
             eq(profiles.matchStatus, "pending"),
-            eq(teacherSignups.status, "pending"),
+            inArray(teacherSignups.status, ["pending", "approved"]),
           ),
         )
         .orderBy(asc(teacherSignups.createdAt)),
@@ -242,7 +279,12 @@ export const adminRouter = createTRPCRouter({
           reviewedAt: new Date(),
           status: input.action === "approve" ? "approved" : "rejected",
         })
-        .where(and(eq(studentSignups.id, input.id), eq(studentSignups.status, "pending")))
+        .where(
+          and(
+            eq(studentSignups.id, input.id),
+            eq(studentSignups.status, "pending"),
+          ),
+        )
         .returning();
 
       if (!updated) {
@@ -277,7 +319,12 @@ export const adminRouter = createTRPCRouter({
           reviewedAt: new Date(),
           status: input.action === "approve" ? "approved" : "rejected",
         })
-        .where(and(eq(teacherSignups.id, input.id), eq(teacherSignups.status, "pending")))
+        .where(
+          and(
+            eq(teacherSignups.id, input.id),
+            eq(teacherSignups.status, "pending"),
+          ),
+        )
         .returning();
 
       if (!updated) {
@@ -301,6 +348,93 @@ export const adminRouter = createTRPCRouter({
       return { signup: updated };
     }),
 
+  listReviewedSignups: adminProcedure
+    .input(reviewedSignupsFilterSchema)
+    .query(async ({ ctx, input }) => {
+      const studentStatuses: Array<"approved" | "rejected"> =
+        input.status === "all" ? ["approved", "rejected"] : [input.status];
+      const teacherStatuses: Array<"approved" | "rejected"> =
+        input.status === "all" ? ["approved", "rejected"] : [input.status];
+
+      const [students, teachers] = await Promise.all([
+        input.role === "teacher"
+          ? Promise.resolve([])
+          : ctx.db
+              .select({
+                createdAt: studentSignups.createdAt,
+                matchStatus: profiles.matchStatus,
+                name: studentSignups.childName,
+                rejectReason: studentSignups.rejectReason,
+                reviewedAt: studentSignups.reviewedAt,
+                role: sql<"student">`'student'`,
+                signupId: studentSignups.id,
+                status: studentSignups.status,
+                username: profiles.username,
+              })
+              .from(studentSignups)
+              .innerJoin(profiles, eq(studentSignups.profileId, profiles.id))
+              .where(inArray(studentSignups.status, studentStatuses))
+              .orderBy(
+                desc(studentSignups.reviewedAt),
+                desc(studentSignups.createdAt),
+              ),
+        input.role === "student"
+          ? Promise.resolve([])
+          : ctx.db
+              .select({
+                createdAt: teacherSignups.createdAt,
+                matchStatus: profiles.matchStatus,
+                name: profiles.name,
+                rejectReason: teacherSignups.rejectReason,
+                reviewedAt: teacherSignups.reviewedAt,
+                role: sql<"teacher">`'teacher'`,
+                signupId: teacherSignups.id,
+                status: teacherSignups.status,
+                username: profiles.username,
+              })
+              .from(teacherSignups)
+              .innerJoin(profiles, eq(teacherSignups.profileId, profiles.id))
+              .where(inArray(teacherSignups.status, teacherStatuses))
+              .orderBy(
+                desc(teacherSignups.reviewedAt),
+                desc(teacherSignups.createdAt),
+              ),
+      ]);
+
+      return [...students, ...teachers].sort((left, right) => {
+        const leftTime = left.reviewedAt?.getTime() ?? 0;
+        const rightTime = right.reviewedAt?.getTime() ?? 0;
+        return (
+          rightTime - leftTime ||
+          right.createdAt.getTime() - left.createdAt.getTime()
+        );
+      });
+    }),
+
+  listRecoveryRequests: adminProcedure.query(async () =>
+    listManualRecoveryRequests(),
+  ),
+
+  markRecoveryRequest: adminProcedure
+    .input(markRecoveryRequestSchema)
+    .mutation(async ({ ctx, input }) => {
+      await rejectManualRecoveryRequest({
+        adminUserId: ctx.session.user.id,
+        requestId: input.id,
+      });
+      return { ok: true };
+    }),
+
+  createRecoveryResetLink: adminProcedure
+    .input(createRecoveryResetLinkSchema)
+    .mutation(async ({ ctx, input }) => ({
+      resetUrl: await createManualRecoveryResetUrl({
+        adminUserId: ctx.session.user.id,
+        requestId: input.requestId,
+        userId: input.userId,
+      }),
+    })),
+
   listPairings: adminProcedure
     .input(listPairingsSchema.optional())
     .query(async ({ ctx, input }) => {
@@ -308,7 +442,9 @@ export const adminRouter = createTRPCRouter({
       const pageSize = input?.pageSize ?? 20;
       const search = input?.search?.trim() ?? "";
 
-      const [overallTotalRow] = await ctx.db.select({ total: count() }).from(pairings);
+      const [overallTotalRow] = await ctx.db
+        .select({ total: count() })
+        .from(pairings);
       const overallTotal = overallTotalRow?.total ?? 0;
 
       let whereClause: ReturnType<typeof or> | undefined;
@@ -324,7 +460,9 @@ export const adminRouter = createTRPCRouter({
               ilike(profiles.contact, profilePattern),
             ),
           );
-        const matchingProfileIds = matchingProfiles.map((profile) => profile.id);
+        const matchingProfileIds = matchingProfiles.map(
+          (profile) => profile.id,
+        );
 
         if (matchingProfileIds.length === 0) {
           return {
@@ -346,7 +484,12 @@ export const adminRouter = createTRPCRouter({
       }
 
       const filteredTotal = whereClause
-        ? ((await ctx.db.select({ total: count() }).from(pairings).where(whereClause))[0]?.total ?? 0)
+        ? ((
+            await ctx.db
+              .select({ total: count() })
+              .from(pairings)
+              .where(whereClause)
+          )[0]?.total ?? 0)
         : overallTotal;
       const totalPages = Math.max(1, Math.ceil(filteredTotal / pageSize));
       const page = Math.min(Math.max(requestedPage, 1), totalPages);
@@ -357,6 +500,11 @@ export const adminRouter = createTRPCRouter({
         limit: pageSize,
         offset,
         with: {
+          appointments: {
+            orderBy: (appointment, { asc }) => [
+              asc(appointment.scheduledStart),
+            ],
+          },
           lessons: {
             orderBy: (lesson, { asc }) => [asc(lesson.weekNumber)],
           },
@@ -381,6 +529,9 @@ export const adminRouter = createTRPCRouter({
     const rows = await ctx.db.query.pairings.findMany({
       orderBy: (pairing, { desc }) => [desc(pairing.createdAt)],
       with: {
+        appointments: {
+          orderBy: (appointment, { asc }) => [asc(appointment.scheduledStart)],
+        },
         lessons: {
           orderBy: (lesson, { asc }) => [asc(lesson.weekNumber)],
         },
@@ -392,13 +543,50 @@ export const adminRouter = createTRPCRouter({
     return buildAdminProgressReport(rows);
   }),
 
+  pairingDetails: adminProcedure
+    .input(deletePairingSchema)
+    .query(async ({ ctx, input }) => {
+      const messages = getMessages(ctx.locale);
+      const pairing = await ctx.db.query.pairings.findFirst({
+        where: eq(pairings.id, input.id),
+        with: {
+          appointments: {
+            orderBy: (appointment, { asc }) => [
+              asc(appointment.scheduledStart),
+            ],
+          },
+          feedback: {
+            orderBy: (feedbackRow, { asc }) => [asc(feedbackRow.weekNumber)],
+          },
+          lessons: {
+            orderBy: (lesson, { asc }) => [asc(lesson.weekNumber)],
+            with: {
+              notes: true,
+            },
+          },
+          student: true,
+          teacher: true,
+        },
+      });
+
+      if (!pairing?.student || !pairing.teacher) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: messages.errors.pairingNotFound,
+        });
+      }
+
+      return serializeAdminPairingDetails(pairing);
+    }),
+
   deletePairing: adminProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(deletePairingSchema)
     .mutation(async ({ ctx, input }) => {
       const messages = getMessages(ctx.locale);
       const pairing = await ctx.db.query.pairings.findFirst({
         where: eq(pairings.id, input.id),
         with: {
+          feedback: true,
           lessons: true,
           student: true,
           teacher: true,
@@ -412,10 +600,16 @@ export const adminRouter = createTRPCRouter({
         });
       }
 
-      const blobKeys = pairing.lessons
+      if (pairing.lessons.length > 0 || pairing.feedback.length > 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: messages.errors.pairingHasHistory,
+        });
+      }
+
+      const evidenceKeys = pairing.lessons
         .map((lesson) => lesson.evidenceKey)
         .filter((value): value is string => Boolean(value));
-      const blobToken = getBlobReadWriteToken();
 
       await ctx.db.transaction(async (tx) => {
         await tx.delete(pairings).where(eq(pairings.id, input.id));
@@ -424,38 +618,30 @@ export const adminRouter = createTRPCRouter({
           .set({
             matchStatus: "pending",
           })
-          .where(inArray(profiles.id, [pairing.teacher.id, pairing.student.id]));
-        await tx
-          .update(studentSignups)
-          .set({
-            rejectReason: "",
-            reviewedAt: null,
-            status: "pending",
-          })
-          .where(eq(studentSignups.profileId, pairing.student.id));
-        await tx
-          .update(teacherSignups)
-          .set({
-            rejectReason: "",
-            reviewedAt: null,
-            status: "pending",
-          })
-          .where(eq(teacherSignups.profileId, pairing.teacher.id));
+          .where(
+            inArray(profiles.id, [pairing.teacher.id, pairing.student.id]),
+          );
       });
 
-      if (blobToken && blobKeys.length > 0) {
+      if (evidenceKeys.length > 0) {
         const cleanupResults = await Promise.allSettled(
-          blobKeys.map((blobKey) => del(blobKey, { token: blobToken })),
+          evidenceKeys.map((evidenceKey) =>
+            deleteStoredLessonEvidence(evidenceKey),
+          ),
         );
         const failedBlobDeletes = cleanupResults.filter(
-          (result): result is PromiseRejectedResult => result.status === "rejected",
+          (result): result is PromiseRejectedResult =>
+            result.status === "rejected",
         );
 
         if (failedBlobDeletes.length > 0) {
-          console.error("[admin.deletePairing] failed to delete orphaned blobs", {
-            blobCount: failedBlobDeletes.length,
-            pairingId: input.id,
-          });
+          console.error(
+            "[admin.deletePairing] failed to delete orphaned blobs",
+            {
+              blobCount: failedBlobDeletes.length,
+              pairingId: input.id,
+            },
+          );
         }
       }
 

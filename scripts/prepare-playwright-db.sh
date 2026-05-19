@@ -24,6 +24,23 @@ eval "$(
 DB_CONTAINER_NAME="${DB_NAME}-postgres"
 PLAYWRIGHT_DB_NAME="${DB_NAME}_e2e"
 
+if ! docker container inspect "$DB_CONTAINER_NAME" >/dev/null 2>&1; then
+  echo "Expected Docker container '$DB_CONTAINER_NAME' to exist before running Playwright tests." >&2
+  exit 1
+fi
+
+if [ "$(docker inspect -f '{{.State.Running}}' "$DB_CONTAINER_NAME")" != "true" ]; then
+  docker start "$DB_CONTAINER_NAME" >/dev/null
+fi
+
+for _ in {1..30}; do
+  if docker exec "$DB_CONTAINER_NAME" pg_isready -U postgres -d postgres >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+docker exec "$DB_CONTAINER_NAME" pg_isready -U postgres -d postgres >/dev/null
 docker exec "$DB_CONTAINER_NAME" psql -U postgres -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$PLAYWRIGHT_DB_NAME' AND pid <> pg_backend_pid();"
 docker exec "$DB_CONTAINER_NAME" psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"$PLAYWRIGHT_DB_NAME\";"
 docker exec "$DB_CONTAINER_NAME" psql -U postgres -d postgres -c "CREATE DATABASE \"$PLAYWRIGHT_DB_NAME\";"

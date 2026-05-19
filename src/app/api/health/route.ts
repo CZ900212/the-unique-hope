@@ -2,11 +2,11 @@ import { sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { db } from "~/server/db";
-import { getBlobReadWriteToken } from "~/server/lesson-evidence";
+import { getLessonEvidenceStorageMode } from "~/server/lesson-evidence";
 
 export async function GET() {
   const timestamp = new Date().toISOString();
-  const blobConfigured = Boolean(getBlobReadWriteToken());
+  const uploadStorageConfigured = Boolean(getLessonEvidenceStorageMode());
 
   try {
     await db.execute(sql`select 1 from "unique_hope_user" limit 1`);
@@ -16,7 +16,7 @@ export async function GET() {
       service: "the-unique-hope",
       timestamp,
       checks: {
-        blob: blobConfigured ? "configured" : "not_configured",
+        blob: uploadStorageConfigured ? "configured" : "not_configured",
         database: "ok",
       },
     });
@@ -29,7 +29,7 @@ export async function GET() {
         service: "the-unique-hope",
         timestamp,
         checks: {
-          blob: blobConfigured ? "configured" : "not_configured",
+          blob: uploadStorageConfigured ? "configured" : "not_configured",
           database: "error",
         },
       },

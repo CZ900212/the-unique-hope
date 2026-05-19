@@ -7,12 +7,7 @@ import {
   passwordSchema,
 } from "~/lib/domain";
 import { db } from "~/server/db";
-import {
-  profiles,
-  sessions,
-  userCredentials,
-  users,
-} from "~/server/db/schema";
+import { profiles, sessions, userCredentials, users } from "~/server/db/schema";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -68,7 +63,9 @@ export async function resetAdminPassword(input: ResetAdminPasswordInput) {
   return account;
 }
 
-async function findAdminAccount(identifier: string): Promise<AdminAccount | null> {
+async function findAdminAccount(
+  identifier: string,
+): Promise<AdminAccount | null> {
   if (isEmailIdentifier(identifier)) {
     const user = await db.query.users.findFirst({
       where: eq(users.email, identifier),

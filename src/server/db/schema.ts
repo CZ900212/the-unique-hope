@@ -31,15 +31,46 @@ export const visibilityEnum = pgEnum("unique_hope_visibility", [
   "private",
   "shared",
 ]);
+export const appointmentStatusEnum = pgEnum("unique_hope_appointment_status", [
+  "pending",
+  "confirmed",
+  "declined",
+  "cancellation_pending",
+  "cancelled",
+]);
+export const appointmentRequestedByEnum = pgEnum(
+  "unique_hope_appointment_requested_by",
+  ["student", "teacher"],
+);
 export const signupStatusEnum = pgEnum("unique_hope_signup_status", [
   "pending",
   "approved",
   "rejected",
 ]);
-export const profileMatchStatusEnum = pgEnum("unique_hope_profile_match_status", [
-  "pending",
-  "matched",
-]);
+export const profileMatchStatusEnum = pgEnum(
+  "unique_hope_profile_match_status",
+  ["pending", "matched"],
+);
+export const notificationPushDeliveryStatusEnum = pgEnum(
+  "unique_hope_notification_push_delivery_status",
+  ["queued", "processing", "sent", "failed", "dead"],
+);
+export const recoveryPhoneStatusEnum = pgEnum(
+  "unique_hope_recovery_phone_status",
+  ["active", "disabled"],
+);
+export const recoveryPhoneSourceEnum = pgEnum(
+  "unique_hope_recovery_phone_source",
+  ["student_signup_backfill", "admin", "user_verified"],
+);
+export const smsVerificationPurposeEnum = pgEnum(
+  "unique_hope_sms_verification_purpose",
+  ["password_reset"],
+);
+export const recoveryRequestStatusEnum = pgEnum(
+  "unique_hope_recovery_request_status",
+  ["pending", "approved", "rejected", "expired", "completed"],
+);
 
 export const users = createTable(
   "user",
@@ -128,7 +159,9 @@ export const profiles = createTable(
     username: varchar("username", { length: 32 }).notNull(),
     name: varchar("name", { length: 120 }).notNull(),
     contact: varchar("contact", { length: 255 }),
-    matchStatus: profileMatchStatusEnum("match_status").default("pending").notNull(),
+    matchStatus: profileMatchStatusEnum("match_status")
+      .default("pending")
+      .notNull(),
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -176,6 +209,213 @@ export const passwordResetTokens = createTable(
     uniqueIndex("password_reset_token_hash_idx").on(table.tokenHash),
     index("password_reset_user_id_idx").on(table.userId),
     index("password_reset_expires_at_idx").on(table.expiresAt),
+  ],
+);
+
+export const studentRecoveryPhones = createTable(
+  "student_recovery_phone",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: varchar("user_id", { length: 255 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    phoneHash: varchar("phone_hash", { length: 64 }).notNull(),
+    phoneMasked: varchar("phone_masked", { length: 32 }).notNull(),
+    phoneLast4: varchar("phone_last4", { length: 8 }).notNull(),
+    status: recoveryPhoneStatusEnum("status").default("active").notNull(),
+    source: recoveryPhoneSourceEnum("source")
+      .default("student_signup_backfill")
+      .notNull(),
+    verifiedAt: timestamp("verified_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    lastVerifiedAt: timestamp("last_verified_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("student_recovery_phone_hash_idx").on(table.phoneHash),
+    index("student_recovery_phone_user_idx").on(table.userId),
+    index("student_recovery_phone_status_idx").on(table.status),
+  ],
+);
+
+export const smsVerificationCodes = createTable(
+  "sms_verification_code",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    phoneHash: varchar("phone_hash", { length: 64 }).notNull(),
+    purpose: smsVerificationPurposeEnum("purpose")
+      .default("password_reset")
+      .notNull(),
+    codeHash: varchar("code_hash", { length: 64 }).notNull(),
+    expiresAt: timestamp("expires_at", {
+      mode: "date",
+      withTimezone: true,
+    }).notNull(),
+    attemptCount: integer("attempt_count").default(0).notNull(),
+    maxAttempts: integer("max_attempts").default(5).notNull(),
+    consumedAt: timestamp("consumed_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    sentAt: timestamp("sent_at", {
+      mode: "date",
+      withTimezone: true,
+    }).notNull(),
+    provider: varchar("provider", { length: 64 }).notNull(),
+    providerMessageId: varchar("provider_message_id", { length: 255 }),
+    requestIpHash: varchar("request_ip_hash", { length: 64 }),
+    requestUserAgentHash: varchar("request_user_agent_hash", { length: 64 }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("sms_verification_phone_purpose_idx").on(
+      table.phoneHash,
+      table.purpose,
+      table.createdAt,
+    ),
+    index("sms_verification_expires_idx").on(table.expiresAt),
+  ],
+);
+
+export const passwordResetSessions = createTable(
+  "password_reset_session",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    userId: varchar("user_id", { length: 255 }).references(() => users.id, {
+      onDelete: "cascade",
+    }),
+    phoneHash: varchar("phone_hash", { length: 64 }).notNull(),
+    smsCodeId: uuid("sms_code_id")
+      .notNull()
+      .references(() => smsVerificationCodes.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", {
+      mode: "date",
+      withTimezone: true,
+    }).notNull(),
+    consumedAt: timestamp("consumed_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    attemptCount: integer("attempt_count").default(0).notNull(),
+    createdIpHash: varchar("created_ip_hash", { length: 64 }),
+    createdUserAgentHash: varchar("created_user_agent_hash", { length: 64 }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("password_reset_session_token_idx").on(table.tokenHash),
+    index("password_reset_session_user_idx").on(table.userId),
+    index("password_reset_session_phone_idx").on(table.phoneHash),
+    index("password_reset_session_expires_idx").on(table.expiresAt),
+  ],
+);
+
+export const adminRecoveryRequests = createTable(
+  "admin_recovery_request",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    phoneHash: varchar("phone_hash", { length: 64 }).notNull(),
+    phoneMasked: varchar("phone_masked", { length: 32 }).notNull(),
+    candidateCount: integer("candidate_count").notNull(),
+    applicantStudentName: varchar("applicant_student_name", {
+      length: 120,
+    }).notNull(),
+    applicantStudentAge: integer("applicant_student_age"),
+    applicantNote: text("applicant_note").default("").notNull(),
+    status: recoveryRequestStatusEnum("status").default("pending").notNull(),
+    reviewedByAdminId: varchar("reviewed_by_admin_id", {
+      length: 255,
+    }).references(() => users.id, { onDelete: "set null" }),
+    reviewNote: text("review_note"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    reviewedAt: timestamp("reviewed_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    completedAt: timestamp("completed_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
+  },
+  (table) => [
+    index("admin_recovery_request_phone_status_idx").on(
+      table.phoneHash,
+      table.status,
+    ),
+    index("admin_recovery_request_status_created_idx").on(
+      table.status,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const manualRecoveryRequests = createTable(
+  "manual_recovery_request",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    applicantRole: roleEnum("applicant_role").notNull(),
+    applicantName: varchar("applicant_name", { length: 120 }).notNull(),
+    applicantContact: varchar("applicant_contact", { length: 255 }).notNull(),
+    applicantNote: text("applicant_note").default("").notNull(),
+    status: recoveryRequestStatusEnum("status").default("pending").notNull(),
+    reviewedByAdminId: varchar("reviewed_by_admin_id", {
+      length: 255,
+    }).references(() => users.id, { onDelete: "set null" }),
+    selectedUserId: varchar("selected_user_id", { length: 255 }).references(
+      () => users.id,
+      { onDelete: "set null" },
+    ),
+    passwordResetTokenId: uuid("password_reset_token_id").references(
+      () => passwordResetTokens.id,
+      { onDelete: "set null" },
+    ),
+    reviewNote: text("review_note"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    reviewedAt: timestamp("reviewed_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    completedAt: timestamp("completed_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("manual_recovery_request_status_created_idx").on(
+      table.status,
+      table.createdAt,
+    ),
+    index("manual_recovery_request_applicant_lookup_idx").on(
+      table.applicantRole,
+      table.status,
+      table.applicantName,
+      table.applicantContact,
+    ),
+    index("manual_recovery_request_selected_user_idx").on(table.selectedUserId),
+    index("manual_recovery_request_token_idx").on(table.passwordResetTokenId),
   ],
 );
 
@@ -383,9 +623,192 @@ export const feedback = createTable(
   ],
 );
 
+export const lessonAppointments = createTable(
+  "lesson_appointment",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    pairingId: uuid("pairing_id")
+      .notNull()
+      .references(() => pairings.id, { onDelete: "cascade" }),
+    weekNumber: integer("week_number"),
+    scheduledStart: timestamp("scheduled_start", {
+      mode: "date",
+      withTimezone: true,
+    }).notNull(),
+    durationMinutes: integer("duration_minutes").default(45).notNull(),
+    status: appointmentStatusEnum("status").default("pending").notNull(),
+    requestedBy: appointmentRequestedByEnum("requested_by").notNull(),
+    cancellationRequestedBy: appointmentRequestedByEnum(
+      "cancellation_requested_by",
+    ),
+    responseReason: text("response_reason"),
+    cancellationReason: text("cancellation_reason"),
+    cancellationResponseReason: text("cancellation_response_reason"),
+    respondedAt: timestamp("responded_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("lesson_appointment_pairing_idx").on(table.pairingId),
+    index("lesson_appointment_status_idx").on(table.status, table.updatedAt),
+    index("lesson_appointment_schedule_idx").on(
+      table.pairingId,
+      table.scheduledStart,
+    ),
+  ],
+);
+
+export const userNotifications = createTable(
+  "user_notification",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    recipientProfileId: uuid("recipient_profile_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    actorProfileId: uuid("actor_profile_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    appointmentId: uuid("appointment_id").references(
+      () => lessonAppointments.id,
+      { onDelete: "set null" },
+    ),
+    type: varchar("type", { length: 64 }).notNull(),
+    titleEn: varchar("title_en", { length: 255 }).notNull(),
+    titleZh: varchar("title_zh", { length: 255 }).notNull(),
+    bodyEn: text("body_en").notNull(),
+    bodyZh: text("body_zh").notNull(),
+    href: varchar("href", { length: 500 }),
+    readAt: timestamp("read_at", { mode: "date", withTimezone: true }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("user_notification_recipient_idx").on(
+      table.recipientProfileId,
+      table.createdAt,
+    ),
+    index("user_notification_unread_idx").on(
+      table.recipientProfileId,
+      table.readAt,
+    ),
+  ],
+);
+
+export const browserPushSubscriptions = createTable(
+  "browser_push_subscription",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    userAgent: varchar("user_agent", { length: 500 }),
+    disabledAt: timestamp("disabled_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    failureCount: integer("failure_count").default(0).notNull(),
+    lastSuccessAt: timestamp("last_success_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    lastErrorAt: timestamp("last_error_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    expirationTime: timestamp("expiration_time", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("browser_push_subscription_endpoint_idx").on(table.endpoint),
+    index("browser_push_subscription_profile_idx").on(table.profileId),
+  ],
+);
+
+export const notificationPushDeliveries = createTable(
+  "notification_push_delivery",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userNotificationId: uuid("user_notification_id")
+      .notNull()
+      .references(() => userNotifications.id, { onDelete: "cascade" }),
+    recipientProfileId: uuid("recipient_profile_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    browserPushSubscriptionId: uuid("browser_push_subscription_id")
+      .notNull()
+      .references(() => browserPushSubscriptions.id, { onDelete: "cascade" }),
+    status: notificationPushDeliveryStatusEnum("status")
+      .default("queued")
+      .notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at", {
+      mode: "date",
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+    lastAttemptAt: timestamp("last_attempt_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    sentAt: timestamp("sent_at", { mode: "date", withTimezone: true }),
+    lastStatusCode: integer("last_status_code"),
+    lastErrorCode: varchar("last_error_code", { length: 64 }),
+    lastErrorMessage: text("last_error_message"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("notification_push_delivery_notification_subscription_idx").on(
+      table.userNotificationId,
+      table.browserPushSubscriptionId,
+    ),
+    index("notification_push_delivery_status_next_idx").on(
+      table.status,
+      table.nextAttemptAt,
+    ),
+    index("notification_push_delivery_recipient_idx").on(
+      table.recipientProfileId,
+      table.createdAt,
+    ),
+    index("notification_push_delivery_subscription_idx").on(
+      table.browserPushSubscriptionId,
+    ),
+  ],
+);
+
 export const usersRelations = relations(users, ({ many, one }) => ({
   accounts: many(accounts),
+  adminRecoveryReviews: many(adminRecoveryRequests),
   passwordResetTokens: many(passwordResetTokens),
+  passwordResetSessions: many(passwordResetSessions),
+  recoveryPhones: many(studentRecoveryPhones),
   sessions: many(sessions),
   profile: one(profiles, {
     fields: [users.id],
@@ -435,6 +858,11 @@ export const profilesRelations = relations(profiles, ({ one, many }) => ({
     relationName: "studentPairing",
   }),
   feedback: many(feedback),
+  notifications: many(userNotifications, {
+    relationName: "recipientNotifications",
+  }),
+  browserPushSubscriptions: many(browserPushSubscriptions),
+  notificationPushDeliveries: many(notificationPushDeliveries),
 }));
 
 export const userCredentialsRelations = relations(
@@ -471,6 +899,67 @@ export const passwordResetTokensRelations = relations(
   }),
 );
 
+export const studentRecoveryPhonesRelations = relations(
+  studentRecoveryPhones,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [studentRecoveryPhones.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const smsVerificationCodesRelations = relations(
+  smsVerificationCodes,
+  ({ many }) => ({
+    resetSessions: many(passwordResetSessions),
+  }),
+);
+
+export const passwordResetSessionsRelations = relations(
+  passwordResetSessions,
+  ({ one }) => ({
+    smsCode: one(smsVerificationCodes, {
+      fields: [passwordResetSessions.smsCodeId],
+      references: [smsVerificationCodes.id],
+    }),
+    user: one(users, {
+      fields: [passwordResetSessions.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const adminRecoveryRequestsRelations = relations(
+  adminRecoveryRequests,
+  ({ one }) => ({
+    reviewedByAdmin: one(users, {
+      fields: [adminRecoveryRequests.reviewedByAdminId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const manualRecoveryRequestsRelations = relations(
+  manualRecoveryRequests,
+  ({ one }) => ({
+    reviewedByAdmin: one(users, {
+      fields: [manualRecoveryRequests.reviewedByAdminId],
+      references: [users.id],
+      relationName: "manualRecoveryReviewedBy",
+    }),
+    selectedUser: one(users, {
+      fields: [manualRecoveryRequests.selectedUserId],
+      references: [users.id],
+      relationName: "manualRecoverySelectedUser",
+    }),
+    passwordResetToken: one(passwordResetTokens, {
+      fields: [manualRecoveryRequests.passwordResetTokenId],
+      references: [passwordResetTokens.id],
+    }),
+  }),
+);
+
 export const pairingsRelations = relations(pairings, ({ one, many }) => ({
   teacher: one(profiles, {
     fields: [pairings.teacherProfileId],
@@ -484,6 +973,7 @@ export const pairingsRelations = relations(pairings, ({ one, many }) => ({
   }),
   lessons: many(lessons),
   feedback: many(feedback),
+  appointments: many(lessonAppointments),
 }));
 
 export const lessonsRelations = relations(lessons, ({ one }) => ({
@@ -514,5 +1004,66 @@ export const feedbackRelations = relations(feedback, ({ one }) => ({
     references: [profiles.id],
   }),
 }));
+
+export const lessonAppointmentsRelations = relations(
+  lessonAppointments,
+  ({ many, one }) => ({
+    pairing: one(pairings, {
+      fields: [lessonAppointments.pairingId],
+      references: [pairings.id],
+    }),
+    notifications: many(userNotifications),
+  }),
+);
+
+export const userNotificationsRelations = relations(
+  userNotifications,
+  ({ many, one }) => ({
+    actor: one(profiles, {
+      fields: [userNotifications.actorProfileId],
+      references: [profiles.id],
+      relationName: "actorNotifications",
+    }),
+    appointment: one(lessonAppointments, {
+      fields: [userNotifications.appointmentId],
+      references: [lessonAppointments.id],
+    }),
+    recipient: one(profiles, {
+      fields: [userNotifications.recipientProfileId],
+      references: [profiles.id],
+      relationName: "recipientNotifications",
+    }),
+    pushDeliveries: many(notificationPushDeliveries),
+  }),
+);
+
+export const browserPushSubscriptionsRelations = relations(
+  browserPushSubscriptions,
+  ({ many, one }) => ({
+    profile: one(profiles, {
+      fields: [browserPushSubscriptions.profileId],
+      references: [profiles.id],
+    }),
+    deliveries: many(notificationPushDeliveries),
+  }),
+);
+
+export const notificationPushDeliveriesRelations = relations(
+  notificationPushDeliveries,
+  ({ one }) => ({
+    browserPushSubscription: one(browserPushSubscriptions, {
+      fields: [notificationPushDeliveries.browserPushSubscriptionId],
+      references: [browserPushSubscriptions.id],
+    }),
+    recipient: one(profiles, {
+      fields: [notificationPushDeliveries.recipientProfileId],
+      references: [profiles.id],
+    }),
+    userNotification: one(userNotifications, {
+      fields: [notificationPushDeliveries.userNotificationId],
+      references: [userNotifications.id],
+    }),
+  }),
+);
 
 export const nowSql = sql`CURRENT_TIMESTAMP`;

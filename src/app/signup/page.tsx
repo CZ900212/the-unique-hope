@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AuthPageShell } from "~/components/auth-page-shell";
 import { SignupForm } from "~/components/signup-form";
 import { getMessages } from "~/lib/i18n";
-import { getServerLocale } from "~/server/locale";
+import { getServerLocale } from "~/server/server-locale";
 
 export default async function SignupPage(props: {
   searchParams?: Promise<{ role?: string }>;
@@ -18,10 +18,16 @@ export default async function SignupPage(props: {
       locale={locale}
       footer={
         <>
-          <Link href="/" className="font-medium transition-colors hover:text-[var(--color-text-main)]">
+          <Link
+            href="/"
+            className="font-medium transition-colors hover:text-[var(--color-text-main)]"
+          >
             {messages.common.backHome}
           </Link>
-          <Link href="/login" className="font-medium transition-colors hover:text-[var(--color-text-main)]">
+          <Link
+            href="/login"
+            className="font-medium transition-colors hover:text-[var(--color-text-main)]"
+          >
             {messages.landing.headerLogin}
           </Link>
         </>

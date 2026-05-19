@@ -14,6 +14,7 @@ import {
 import { env } from "~/env";
 import { db } from "~/server/db";
 import {
+  manualRecoveryRequests,
   passwordResetTokens,
   profiles,
   sessions,
@@ -142,28 +143,42 @@ async function findResettableAccount(
   };
 }
 
-async function persistPasswordResetToken(userId: string) {
+async function persistPasswordResetToken(userId: string, ttlMs: number) {
   const rawToken = randomBytes(TOKEN_BYTES).toString("base64url");
   const tokenHash = hashPasswordResetToken(rawToken);
-  const expiresAt = new Date(
-    Date.now() + env.PASSWORD_RESET_TOKEN_TTL_MINUTES * 60 * 1000,
-  );
+  const expiresAt = new Date(Date.now() + ttlMs);
+  let tokenId = "";
 
   await db.transaction(async (tx) => {
     await tx
       .delete(passwordResetTokens)
       .where(eq(passwordResetTokens.userId, userId));
-    await tx.insert(passwordResetTokens).values({
-      userId,
-      tokenHash,
-      expiresAt,
-    });
+    const [token] = await tx
+      .insert(passwordResetTokens)
+      .values({
+        userId,
+        tokenHash,
+        expiresAt,
+      })
+      .returning({ id: passwordResetTokens.id });
+    tokenId = token?.id ?? "";
   });
 
   return {
     rawToken,
     resetUrl: buildResetUrl(rawToken),
+    tokenId,
   };
+}
+
+export async function createPasswordResetTokenForUser(input: {
+  ttlMs?: number;
+  userId: string;
+}) {
+  return persistPasswordResetToken(
+    input.userId,
+    input.ttlMs ?? env.PASSWORD_RESET_TOKEN_TTL_MINUTES * 60 * 1000,
+  );
 }
 
 export function createPasswordResetEmailContent(input: {
@@ -242,11 +257,13 @@ export async function requestPasswordReset(input: PasswordResetRequestInput) {
   }
 
   if (isManagedLocalEmail(account.email)) {
-    return { status: "suppressed" as const };
+    return { status: "manual_required" as const };
   }
 
   if (!emailConfigured) {
-    const preview = await persistPasswordResetToken(account.userId);
+    const preview = await createPasswordResetTokenForUser({
+      userId: account.userId,
+    });
     console.info(
       `[password-reset] preview link for ${account.email}: ${preview.resetUrl}`,
     );
@@ -256,7 +273,9 @@ export async function requestPasswordReset(input: PasswordResetRequestInput) {
     };
   }
 
-  const preview = await persistPasswordResetToken(account.userId);
+  const preview = await createPasswordResetTokenForUser({
+    userId: account.userId,
+  });
   try {
     await sendPasswordResetEmail({
       email: account.email,
@@ -274,7 +293,6 @@ export async function resetPasswordWithToken(input: PasswordResetConfirmInput) {
   const parsed = resetPasswordSchema.parse(input);
   const tokenHash = hashPasswordResetToken(parsed.token);
   const now = new Date();
-  const passwordHash = await hash(parsed.password, BCRYPT_ROUNDS);
 
   return db.transaction(async (tx) => {
     const [claimedToken] = await tx
@@ -294,6 +312,8 @@ export async function resetPasswordWithToken(input: PasswordResetConfirmInput) {
     if (!claimedToken) {
       return { status: "invalid_token" as const };
     }
+
+    const passwordHash = await hash(parsed.password, BCRYPT_ROUNDS);
 
     await tx
       .update(userCredentials)
@@ -318,6 +338,20 @@ export async function resetPasswordWithToken(input: PasswordResetConfirmInput) {
         and(
           eq(passwordResetTokens.userId, claimedToken.userId),
           isNull(passwordResetTokens.usedAt),
+        ),
+      );
+
+    await tx
+      .update(manualRecoveryRequests)
+      .set({
+        completedAt: now,
+        status: "completed",
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(manualRecoveryRequests.passwordResetTokenId, claimedToken.id),
+          eq(manualRecoveryRequests.status, "approved"),
         ),
       );
     return { status: "success" as const };

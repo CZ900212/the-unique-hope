@@ -14,7 +14,9 @@ export function getDefaultTeacherWeek(lessons: readonly TeacherLesson[]) {
     return 1;
   }
 
-  const sorted = [...lessons].sort((left, right) => left.week_number - right.week_number);
+  const sorted = [...lessons].sort(
+    (left, right) => left.week_number - right.week_number,
+  );
   const last = sorted.at(-1)!;
 
   if (last.status === "taught" && last.week_number < 20) {

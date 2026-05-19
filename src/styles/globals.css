@@ -243,54 +243,9 @@ h1, h2, h3, h4, h5, h6 {
 .status-chip.warning { background: #FEF3C7; color: #92400E; }
 .status-chip.danger { background: #FEE2E2; color: #991B1B; }
 .status-chip.info { background: #DBEAFE; color: #1E40AF; }
-
-/* ==================== Sidebar ==================== */
-.sidebar {
-  width: 280px;
-  background: white;
-  border-right: 1px solid var(--card-border);
-  display: flex;
-  flex-direction: column;
-  padding: var(--spacing-lg) 0;
-  flex-shrink: 0;
-}
-
-.sidebar-brand {
-  padding: 0 var(--spacing-lg);
-  font-family: var(--font-title);
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--color-primary);
-  margin-bottom: var(--spacing-xl);
-}
-
-.sidebar-item {
-  padding: 12px 20px;
-  border-radius: var(--radius-md);
-  color: var(--color-text-secondary);
-  font-weight: 600;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: var(--transition-fast);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  border: none;
-  background: transparent;
-  text-align: left;
-}
-
-.sidebar-item:hover {
-  background: var(--color-bg-secondary);
-  color: var(--color-text-main);
-}
-
-.sidebar-item.active {
-  background: var(--color-primary-light);
-  color: var(--color-primary-dark);
-  border-left: 3px solid var(--color-primary);
-}
+.status-chip-button { border: none; cursor: pointer; transition: var(--transition-fast); }
+.status-chip-button:hover { opacity: 0.85; }
+.status-chip-button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 
 /* ==================== Tables ==================== */
 table { width: 100%; border-collapse: collapse; }
@@ -366,5 +321,36 @@ tr:hover td { background: var(--color-bg-main); }
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ==================== Mobile adjustments ==================== */
+@media (max-width: 640px) {
+  th, td {
+    padding: 10px 12px;
+    font-size: 0.85rem;
+  }
+
+  .toast-container {
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    max-width: none;
+  }
+
+  .toast {
+    max-width: 100%;
+  }
+
+  .dash-card {
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+  }
+}
+
+@media (pointer: coarse) {
+  ::-webkit-scrollbar {
+    width: 0;
+    height: 0;
   }
 }

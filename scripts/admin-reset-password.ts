@@ -21,7 +21,8 @@ async function main() {
     );
   }
 
-  const password = readArg("--password") ?? randomBytes(18).toString("base64url");
+  const password =
+    readArg("--password") ?? randomBytes(18).toString("base64url");
   const account = await resetAdminPassword({
     identifier,
     password,

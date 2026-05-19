@@ -5,7 +5,13 @@ import { env } from "~/env";
 import { toCanonicalEmail } from "~/lib/domain";
 import { resolveSeedPolicy } from "~/lib/seed-policy";
 import { conn, db } from "~/server/db";
-import { pairings, profiles, sessions, userCredentials, users } from "~/server/db/schema";
+import {
+  pairings,
+  profiles,
+  sessions,
+  userCredentials,
+  users,
+} from "~/server/db/schema";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -18,7 +24,8 @@ async function ensureUserWithProfile(input: {
   role: "admin" | "teacher" | "student";
   username: string;
 }) {
-  const canonicalEmail = input.email ?? toCanonicalEmail(undefined, input.username, input.role);
+  const canonicalEmail =
+    input.email ?? toCanonicalEmail(undefined, input.username, input.role);
   const existingUser = await db.query.users.findFirst({
     where: eq(users.email, canonicalEmail),
     with: {
@@ -162,13 +169,17 @@ async function ensureDemoPairing(resetExistingPassword: boolean) {
     .set({
       matchStatus: "matched",
     })
-    .where(and(eq(profiles.id, teacher.profile.id), eq(profiles.role, "teacher")));
+    .where(
+      and(eq(profiles.id, teacher.profile.id), eq(profiles.role, "teacher")),
+    );
   await db
     .update(profiles)
     .set({
       matchStatus: "matched",
     })
-    .where(and(eq(profiles.id, student.profile.id), eq(profiles.role, "student")));
+    .where(
+      and(eq(profiles.id, student.profile.id), eq(profiles.role, "student")),
+    );
 }
 
 async function main() {
@@ -198,13 +209,17 @@ async function main() {
   if (admin.created) {
     console.log("Admin account created with the supplied SEED_ADMIN_PASSWORD.");
   } else if (admin.passwordUpdated) {
-    console.log("Admin account already existed; password rotated from SEED_ADMIN_PASSWORD.");
+    console.log(
+      "Admin account already existed; password rotated from SEED_ADMIN_PASSWORD.",
+    );
   } else {
     console.log("Admin account already existed; password left unchanged.");
   }
 
   if (seedPolicy.seedDemoData) {
-    console.log("Demo teacher/student accounts ensured for non-production use.");
+    console.log(
+      "Demo teacher/student accounts ensured for non-production use.",
+    );
     console.log("Demo admin: demo_admin / demo123456");
   }
 }

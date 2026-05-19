@@ -1,7 +1,8 @@
-import { createHash } from "node:crypto";
+import { createHmac } from "node:crypto";
 
 import { and, eq, gt, lte, sql } from "drizzle-orm";
 
+import { env } from "~/env";
 import { db } from "~/server/db";
 import { requestRateLimits } from "~/server/db/schema";
 
@@ -34,7 +35,11 @@ function readClientIpCandidate(value: string | null) {
 
 export function extractClientIp(input: Headers | Request | null | undefined) {
   const headers =
-    input instanceof Request ? input.headers : input instanceof Headers ? input : null;
+    input instanceof Request
+      ? input.headers
+      : input instanceof Headers
+        ? input
+        : null;
   if (!headers) {
     return null;
   }
@@ -61,10 +66,14 @@ export function extractClientIp(input: Headers | Request | null | undefined) {
 }
 
 export function hashRateLimitSubject(subject: string) {
-  return createHash("sha256").update(subject).digest("hex");
+  return createHmac("sha256", getRateLimitHashKey())
+    .update(subject)
+    .digest("hex");
 }
 
-export async function consumeRateLimit(input: RateLimitInput): Promise<RateLimitResult> {
+export async function consumeRateLimit(
+  input: RateLimitInput,
+): Promise<RateLimitResult> {
   const subjectHash = hashRateLimitSubject(input.subject);
   const now = Date.now();
   const nowDate = new Date(now);
@@ -97,7 +106,10 @@ export async function consumeRateLimit(input: RateLimitInput): Promise<RateLimit
     .returning();
 
   const count = row?.count ?? input.limit + 1;
-  const retryAfterSeconds = Math.max(1, Math.ceil((expiresAt.getTime() - now) / 1000));
+  const retryAfterSeconds = Math.max(
+    1,
+    Math.ceil((expiresAt.getTime() - now) / 1000),
+  );
 
   return {
     allowed: count <= input.limit,
@@ -120,4 +132,22 @@ export async function clearRateLimitBuckets(input: {
         gt(requestRateLimits.expiresAt, now),
       ),
     );
+}
+
+function getRateLimitHashKey() {
+  const configuredKey = process.env.RATE_LIMIT_HASH_KEY?.trim();
+  if (configuredKey && configuredKey.length > 0) {
+    return configuredKey;
+  }
+
+  const authSecretFallback = process.env.AUTH_SECRET?.trim() ?? env.AUTH_SECRET;
+  if (authSecretFallback && authSecretFallback.length > 0) {
+    return authSecretFallback;
+  }
+
+  if (env.RATE_LIMIT_HASH_KEY) {
+    return env.RATE_LIMIT_HASH_KEY;
+  }
+
+  throw new Error("RATE_LIMIT_HASH_KEY or AUTH_SECRET must be configured");
 }

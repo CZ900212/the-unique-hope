@@ -1,10 +1,22 @@
 import { eq } from "drizzle-orm";
 
-import { TOTAL_WEEKS, updateMeetingLinkSchema } from "~/lib/domain";
+import {
+  appointmentRequestSchema,
+  appointmentResponseSchema,
+  TOTAL_WEEKS,
+  updateMeetingLinkSchema,
+} from "~/lib/domain";
 import { pairings } from "~/server/db/schema";
 import { createTRPCRouter, roleProtectedProcedure } from "~/server/api/trpc";
 import { buildProtectedLessonEvidenceUrl } from "~/server/lesson-evidence";
+import {
+  requestLessonAppointment,
+  respondToLessonAppointment,
+  serializeAppointment,
+  serializeAppointments,
+} from "~/server/services/appointments";
 import { findLatestTeacherVisibleFeedback } from "~/server/services/lesson-feedback";
+import { notifyMeetingLinkUpdated } from "~/server/services/notifications";
 import {
   getTeacherDashboardState,
   requireMatchedTeacherPairing,
@@ -14,12 +26,16 @@ const teacherProcedure = roleProtectedProcedure("teacher");
 
 export const teacherRouter = createTRPCRouter({
   dashboard: teacherProcedure.query(async ({ ctx }) => {
-    const state = await getTeacherDashboardState(ctx.session.user.id, ctx.locale);
+    const state = await getTeacherDashboardState(
+      ctx.session.user.id,
+      ctx.locale,
+    );
 
     if (state.matchingStatus !== "matched") {
       return {
         matchingStatus: state.matchingStatus,
-        rejectReason: state.matchingStatus === "rejected" ? state.rejectReason : "",
+        rejectReason:
+          state.matchingStatus === "rejected" ? state.rejectReason : "",
         teacher: {
           id: state.profile.id,
           name: state.profile.name,
@@ -32,7 +48,9 @@ export const teacherRouter = createTRPCRouter({
       pairing.feedback,
       pairing.lessons,
     );
-    const taughtCount = pairing.lessons.filter((lesson) => lesson.status === "taught").length;
+    const taughtCount = pairing.lessons.filter(
+      (lesson) => lesson.status === "taught",
+    ).length;
 
     return {
       matchingStatus: state.matchingStatus,
@@ -42,6 +60,7 @@ export const teacherRouter = createTRPCRouter({
       },
       meetingLink: pairing.meetingLink,
       student: pairing.student,
+      appointments: serializeAppointments(pairing.appointments),
       progress: {
         taughtCount,
         totalWeeks: TOTAL_WEEKS,
@@ -51,7 +70,10 @@ export const teacherRouter = createTRPCRouter({
           status: lesson.status,
           evidence_path: lesson.evidenceKey,
           updated_at: lesson.updatedAt,
-          evidenceUrl: buildProtectedLessonEvidenceUrl(lesson.id, lesson.evidenceKey),
+          evidenceUrl: buildProtectedLessonEvidenceUrl(
+            lesson.id,
+            lesson.evidenceKey,
+          ),
           notes: lesson.notes
             ? {
                 text: lesson.notes.text,
@@ -73,10 +95,52 @@ export const teacherRouter = createTRPCRouter({
     };
   }),
 
+  requestAppointment: teacherProcedure
+    .input(appointmentRequestSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { pairing } = await requireMatchedTeacherPairing(
+        ctx.session.user.id,
+        ctx.locale,
+      );
+      const appointment = await requestLessonAppointment({
+        appointmentId: input.id,
+        durationMinutes: input.durationMinutes,
+        locale: ctx.locale,
+        pairingId: pairing.id,
+        requestedBy: "teacher",
+        scheduledStart: input.scheduledStart,
+      });
+
+      return {
+        appointment: serializeAppointment(appointment),
+      };
+    }),
+
+  respondAppointment: teacherProcedure
+    .input(appointmentResponseSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { pairing } = await requireMatchedTeacherPairing(
+        ctx.session.user.id,
+        ctx.locale,
+      );
+      const appointment = await respondToLessonAppointment({
+        action: input.action,
+        appointmentId: input.id,
+        locale: ctx.locale,
+        pairingId: pairing.id,
+        reason: input.reason,
+        responder: "teacher",
+      });
+
+      return {
+        appointment: serializeAppointment(appointment),
+      };
+    }),
+
   updateMeetingLink: teacherProcedure
     .input(updateMeetingLinkSchema)
     .mutation(async ({ ctx, input }) => {
-      const { pairing } = await requireMatchedTeacherPairing(
+      const { pairing, profile } = await requireMatchedTeacherPairing(
         ctx.session.user.id,
         ctx.locale,
       );
@@ -87,6 +151,16 @@ export const teacherRouter = createTRPCRouter({
         })
         .where(eq(pairings.id, pairing.id))
         .returning();
+
+      if (
+        input.meetingLink &&
+        input.meetingLink !== (pairing.meetingLink ?? "")
+      ) {
+        await notifyMeetingLinkUpdated({
+          pairing,
+          teacher: profile,
+        });
+      }
 
       return {
         meetingLink: updatedPairing?.meetingLink ?? null,

@@ -20,7 +20,7 @@ import { getRequestLocale } from "~/server/locale";
 /**
  * 1. CONTEXT
  *
- * This section defines the "contexts" that are available in the backend API.
+ * This section defines the "contexts" that are available in the server API.
  *
  * These allow you to access things when processing a request, like the database, the session, etc.
  *
@@ -44,8 +44,7 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
  * 2. INITIALIZATION
  *
  * This is where the tRPC API is initialized, connecting the context and transformer. We also parse
- * ZodErrors so that you get typesafety on the frontend if your procedure fails due to validation
- * errors on the backend.
+ * ZodErrors so that client callers receive structured validation failures.
  */
 const t = initTRPC.context<typeof createTRPCContext>().create({
   transformer: superjson,
@@ -90,8 +89,12 @@ export const createTRPCRouter = t.router;
  */
 const timingMiddleware = t.middleware(async ({ next, path }) => {
   const start = Date.now();
+  const shouldSimulateDevLatency =
+    t._config.isDev && process.env.NODE_ENV === "development";
+  const shouldLogTiming =
+    shouldSimulateDevLatency || process.env.TRPC_TIMING_LOGS === "true";
 
-  if (t._config.isDev) {
+  if (shouldSimulateDevLatency) {
     // artificial delay in dev
     const waitMs = Math.floor(Math.random() * 400) + 100;
     await new Promise((resolve) => setTimeout(resolve, waitMs));
@@ -100,7 +103,9 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
   const result = await next();
 
   const end = Date.now();
-  console.log(`[TRPC] ${path} took ${end - start}ms to execute`);
+  if (shouldLogTiming) {
+    console.log(`[TRPC] ${path} took ${end - start}ms to execute`);
+  }
 
   return result;
 });

@@ -3,12 +3,32 @@
 import { useState, useTransition } from "react";
 
 import { useI18n } from "~/components/locale-provider";
+import { usernameSchema } from "~/lib/domain";
 import { getDisplayErrorMessage } from "~/lib/client-errors";
 import { readFormString } from "~/lib/forms";
 import { api } from "~/trpc/react";
 
 type SignupRole = "student" | "teacher";
 type SignupStep = "details" | "account";
+
+function hasSignupFieldError(error: unknown, field: string) {
+  if (!error || typeof error !== "object" || !("data" in error)) {
+    return false;
+  }
+
+  const data = (
+    error as {
+      data?: {
+        zodError?: {
+          fieldErrors?: Record<string, string[] | undefined>;
+        };
+      };
+    }
+  ).data;
+
+  const messages = data?.zodError?.fieldErrors?.[field];
+  return Array.isArray(messages) && messages.length > 0;
+}
 
 export function SignupForm(props: { initialRole?: SignupRole }) {
   const { locale, messages } = useI18n();
@@ -22,11 +42,13 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
     contact: "",
     confirmPassword: "",
     password: "",
+    email: "",
     phone: "",
     username: "",
   });
   const [teacherForm, setTeacherForm] = useState({
     confirmPassword: "",
+    email: "",
     englishScore: "",
     gender: "",
     grade: "",
@@ -35,18 +57,27 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
     school: "",
     username: "",
   });
+  const [usernameWarning, setUsernameWarning] = useState("");
   const [isPending, startTransition] = useTransition();
   const createStudentSignup = api.public.createStudentSignup.useMutation();
   const createTeacherSignup = api.public.createTeacherSignup.useMutation();
 
   const introZh =
-    role === "student" ? messages.signup.studentIntroZh : messages.signup.teacherIntroZh;
+    role === "student"
+      ? messages.signup.studentIntroZh
+      : messages.signup.teacherIntroZh;
   const introEn =
-    role === "student" ? messages.signup.studentIntroEn : messages.signup.teacherIntroEn;
+    role === "student"
+      ? messages.signup.studentIntroEn
+      : messages.signup.teacherIntroEn;
   const introText = locale === "zh" ? introZh : introEn;
+  const profileHeaderTitle =
+    role === "teacher"
+      ? messages.signup.teacherTitle
+      : messages.signup.profileDetailsTitle;
   const headerTitle =
     step === "details"
-      ? messages.signup.profileDetailsTitle
+      ? profileHeaderTitle
       : messages.signup.accountDetailsTitle;
   const headerDescription =
     step === "details" ? introText : messages.signup.accountDetailsBody;
@@ -73,29 +104,42 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
             return;
           }
 
+          const usernameInput =
+            role === "student" ? studentForm.username : teacherForm.username;
+          const parsedUsername = usernameSchema.safeParse(usernameInput);
+
+          if (!parsedUsername.success) {
+            setError(messages.signup.usernameInvalid);
+            return;
+          }
+
           try {
             if (role === "student") {
               await createStudentSignup.mutateAsync({
                 age: Number(studentForm.age),
                 childName: studentForm.childName.trim(),
                 contact: studentForm.contact.trim(),
+                email: studentForm.email.trim(),
                 password,
                 phone: studentForm.phone.trim(),
-                username: studentForm.username.trim(),
+                username: parsedUsername.data,
               });
             } else {
               await createTeacherSignup.mutateAsync({
                 englishScore: teacherForm.englishScore.trim(),
+                email: teacherForm.email.trim(),
                 gender: teacherForm.gender.trim(),
                 grade: teacherForm.grade.trim(),
                 name: teacherForm.name.trim(),
                 password,
                 school: teacherForm.school.trim(),
-                username: teacherForm.username.trim(),
+                username: parsedUsername.data,
               });
             }
 
-            setMessage(`${messages.signup.message} ${messages.signup.pendingMessage}`);
+            setMessage(
+              `${messages.signup.message} ${messages.signup.pendingMessage}`,
+            );
             formElement.reset();
             setStep("details");
             setStudentForm({
@@ -104,11 +148,13 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
               contact: "",
               confirmPassword: "",
               password: "",
+              email: "",
               phone: "",
               username: "",
             });
             setTeacherForm({
               confirmPassword: "",
+              email: "",
               englishScore: "",
               gender: "",
               grade: "",
@@ -118,15 +164,26 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
               username: "",
             });
           } catch (mutationError) {
-            setError(getDisplayErrorMessage(mutationError, messages.signup.error));
+            if (hasSignupFieldError(mutationError, "username")) {
+              setError(messages.signup.usernameInvalid);
+              return;
+            }
+            if (hasSignupFieldError(mutationError, "email")) {
+              setError(messages.signup.emailInvalid);
+              return;
+            }
+
+            setError(
+              getDisplayErrorMessage(mutationError, messages.signup.error),
+            );
           }
         });
       }}
     >
-      <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-primary)]">
+      <div className="text-xs font-semibold tracking-[0.24em] text-[var(--color-primary)] uppercase">
         {messages.signup.subtitle}
       </div>
-      <h1 className="mt-4 font-[var(--font-title)] text-3xl tracking-tight text-[var(--color-text-main)]">
+      <h1 className="mt-4 text-3xl font-[var(--font-title)] tracking-tight text-[var(--color-text-main)]">
         {headerTitle}
       </h1>
       <p className="mt-3 text-sm leading-7 text-[var(--color-text-secondary)]">
@@ -138,10 +195,12 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
           className="mt-8 grid gap-2 rounded-full bg-[var(--color-bg-secondary)] p-1"
           style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}
         >
-          {([
-            { label: messages.signup.roleStudent, value: "student" },
-            { label: messages.signup.roleTeacher, value: "teacher" },
-          ] as const).map((option) => (
+          {(
+            [
+              { label: messages.signup.roleStudent, value: "student" },
+              { label: messages.signup.roleTeacher, value: "teacher" },
+            ] as const
+          ).map((option) => (
             <button
               key={option.value}
               type="button"
@@ -154,7 +213,7 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
               }}
               className={`rounded-full px-3 py-2 text-sm font-semibold transition ${
                 role === option.value
-                  ? "bg-white text-[var(--color-text-main)] border border-[var(--card-border)] shadow-sm"
+                  ? "border border-[var(--card-border)] bg-white text-[var(--color-text-main)] shadow-sm"
                   : "text-[var(--color-text-secondary)]"
               }`}
             >
@@ -172,7 +231,10 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
                 label={messages.signup.childName}
                 name="childName"
                 onChange={(value) =>
-                  setStudentForm((current) => ({ ...current, childName: value }))
+                  setStudentForm((current) => ({
+                    ...current,
+                    childName: value,
+                  }))
                 }
                 type="text"
                 value={studentForm.childName}
@@ -182,7 +244,9 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
                 max={18}
                 min={3}
                 name="age"
-                onChange={(value) => setStudentForm((current) => ({ ...current, age: value }))}
+                onChange={(value) =>
+                  setStudentForm((current) => ({ ...current, age: value }))
+                }
                 type="number"
                 value={studentForm.age}
               />
@@ -191,7 +255,9 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
                 maxLength={20}
                 minLength={6}
                 name="phone"
-                onChange={(value) => setStudentForm((current) => ({ ...current, phone: value }))}
+                onChange={(value) =>
+                  setStudentForm((current) => ({ ...current, phone: value }))
+                }
                 type="tel"
                 value={studentForm.phone}
               />
@@ -212,7 +278,9 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
               <Field
                 label={messages.signup.name}
                 name="name"
-                onChange={(value) => setTeacherForm((current) => ({ ...current, name: value }))}
+                onChange={(value) =>
+                  setTeacherForm((current) => ({ ...current, name: value }))
+                }
                 type="text"
                 value={teacherForm.name}
               />
@@ -240,12 +308,14 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
                 label={messages.signup.grade}
                 maxLength={64}
                 name="grade"
-                onChange={(value) => setTeacherForm((current) => ({ ...current, grade: value }))}
+                onChange={(value) =>
+                  setTeacherForm((current) => ({ ...current, grade: value }))
+                }
                 type="text"
                 value={teacherForm.grade}
               />
               <label className="block">
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
+                <span className="mb-2 block text-xs font-semibold tracking-[0.12em] text-[var(--color-text-secondary)] uppercase">
                   {messages.signup.englishScore}
                 </span>
                 <textarea
@@ -285,17 +355,52 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
         <div className="mt-6">
           <div className="space-y-5">
             <Field
+              label={messages.signup.email}
+              hint={messages.signup.emailHint}
+              name="email"
+              onChange={(value) => {
+                if (role === "student") {
+                  setStudentForm((current) => ({ ...current, email: value }));
+                  return;
+                }
+
+                setTeacherForm((current) => ({ ...current, email: value }));
+              }}
+              required={false}
+              type="email"
+              value={role === "student" ? studentForm.email : teacherForm.email}
+            />
+            <Field
               label={messages.signup.username}
+              autoCapitalize="none"
+              hint={usernameWarning || messages.signup.usernameHint}
+              hintVariant={usernameWarning ? "warning" : "default"}
               maxLength={32}
               minLength={3}
               name="username"
-              onChange={(value) =>
-                role === "student"
-                  ? setStudentForm((current) => ({ ...current, username: value }))
-                  : setTeacherForm((current) => ({ ...current, username: value }))
-              }
+              onChange={(value) => {
+                const hasSpace = /\s/.test(value);
+                const hasEmoji = /\p{Extended_Pictographic}/u.test(value);
+                setUsernameWarning(
+                  hasSpace || hasEmoji
+                    ? messages.signup.usernameNoSpaceEmoji
+                    : "",
+                );
+                if (role === "student") {
+                  setStudentForm((current) => ({
+                    ...current,
+                    username: value,
+                  }));
+                  return;
+                }
+
+                setTeacherForm((current) => ({ ...current, username: value }));
+              }}
+              spellCheck={false}
               type="text"
-              value={role === "student" ? studentForm.username : teacherForm.username}
+              value={
+                role === "student" ? studentForm.username : teacherForm.username
+              }
             />
             <Field
               label={messages.signup.password}
@@ -304,11 +409,19 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
               name="password"
               onChange={(value) =>
                 role === "student"
-                  ? setStudentForm((current) => ({ ...current, password: value }))
-                  : setTeacherForm((current) => ({ ...current, password: value }))
+                  ? setStudentForm((current) => ({
+                      ...current,
+                      password: value,
+                    }))
+                  : setTeacherForm((current) => ({
+                      ...current,
+                      password: value,
+                    }))
               }
               type="password"
-              value={role === "student" ? studentForm.password : teacherForm.password}
+              value={
+                role === "student" ? studentForm.password : teacherForm.password
+              }
             />
             <Field
               label={messages.signup.confirmPassword}
@@ -317,8 +430,14 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
               name="confirmPassword"
               onChange={(value) =>
                 role === "student"
-                  ? setStudentForm((current) => ({ ...current, confirmPassword: value }))
-                  : setTeacherForm((current) => ({ ...current, confirmPassword: value }))
+                  ? setStudentForm((current) => ({
+                      ...current,
+                      confirmPassword: value,
+                    }))
+                  : setTeacherForm((current) => ({
+                      ...current,
+                      confirmPassword: value,
+                    }))
               }
               type="password"
               value={
@@ -373,6 +492,9 @@ export function SignupForm(props: { initialRole?: SignupRole }) {
 }
 
 function Field(props: {
+  autoCapitalize?: string;
+  hint?: string;
+  hintVariant?: "default" | "warning";
   label: string;
   max?: number;
   maxLength?: number;
@@ -381,15 +503,17 @@ function Field(props: {
   name: string;
   onChange: (value: string) => void;
   required?: boolean;
+  spellCheck?: boolean;
   type: string;
   value: string;
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
+      <span className="mb-2 block text-xs font-semibold tracking-[0.12em] text-[var(--color-text-secondary)] uppercase">
         {props.label}
       </span>
       <input
+        autoCapitalize={props.autoCapitalize}
         name={props.name}
         type={props.type}
         required={props.required ?? true}
@@ -397,10 +521,22 @@ function Field(props: {
         maxLength={props.maxLength}
         min={props.min}
         minLength={props.minLength}
+        spellCheck={props.spellCheck}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
         className="form-control"
       />
+      {props.hint ? (
+        <span
+          className={`mt-2 block text-xs leading-6 ${
+            props.hintVariant === "warning"
+              ? "text-amber-600"
+              : "text-[var(--color-text-secondary)]"
+          }`}
+        >
+          {props.hint}
+        </span>
+      ) : null}
     </label>
   );
 }

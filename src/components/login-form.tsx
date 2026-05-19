@@ -11,8 +11,15 @@ import { readFormString } from "~/lib/forms";
 import { resolveSafeCallbackPath } from "~/lib/navigation";
 import { type Role } from "~/lib/domain";
 
-const PUBLIC_LOGIN_ROLES = ["teacher", "student"] as const satisfies readonly Role[];
-const LOGIN_ROLE_ORDER = ["teacher", "student", "admin"] as const satisfies readonly Role[];
+const PUBLIC_LOGIN_ROLES = [
+  "student",
+  "teacher",
+] as const satisfies readonly Role[];
+const LOGIN_ROLE_ORDER = [
+  "student",
+  "teacher",
+  "admin",
+] as const satisfies readonly Role[];
 
 type LoginFormProps = {
   allowedRoles?: readonly Role[];
@@ -44,6 +51,10 @@ export function LoginForm(props: LoginFormProps) {
   const resetStatus = searchParams.get("reset");
   const showRoleSelector = props.showRoleSelector ?? allowedRoles.length > 1;
   const showForgotPassword = props.showForgotPassword ?? true;
+  const roleHint =
+    props.roleHint ??
+    messages.login.roleHints?.[role] ??
+    messages.login.roleHint;
 
   return (
     <form
@@ -78,18 +89,22 @@ export function LoginForm(props: LoginFormProps) {
         });
       }}
     >
-      <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-primary)]">
+      <div className="text-xs font-semibold tracking-[0.24em] text-[var(--color-primary)] uppercase">
         {props.subtitle ?? messages.login.subtitle}
       </div>
-      <h1 className="mt-4 font-[var(--font-title)] text-3xl tracking-tight text-[var(--color-text-main)]">
+      <h1 className="mt-4 text-3xl font-[var(--font-title)] tracking-tight text-[var(--color-text-main)]">
         {props.title ?? messages.login.title}
       </h1>
       <p className="mt-3 text-sm leading-7 text-[var(--color-text-secondary)]">
-        {props.roleHint ?? messages.login.roleHint}
+        {roleHint}
       </p>
 
       {resetStatus === "success" ? (
-        <div role="status" aria-live="polite" className="mt-5 rounded-[var(--radius-md)] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div
+          role="status"
+          aria-live="polite"
+          className="mt-5 rounded-[var(--radius-md)] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+        >
           {messages.login.resetSuccess}
         </div>
       ) : null}
@@ -97,7 +112,9 @@ export function LoginForm(props: LoginFormProps) {
       {showRoleSelector ? (
         <div
           className="mt-8 grid gap-2 rounded-full bg-[var(--color-bg-secondary)] p-1"
-          style={{ gridTemplateColumns: `repeat(${allowedRoles.length}, minmax(0, 1fr))` }}
+          style={{
+            gridTemplateColumns: `repeat(${allowedRoles.length}, minmax(0, 1fr))`,
+          }}
         >
           {allowedRoles.map((option) => (
             <button
@@ -107,7 +124,7 @@ export function LoginForm(props: LoginFormProps) {
               onClick={() => setRole(option)}
               className={`rounded-full px-3 py-2 text-sm font-semibold transition ${
                 role === option
-                  ? "bg-white text-[var(--color-text-main)] border border-[var(--card-border)] shadow-sm"
+                  ? "border border-[var(--card-border)] bg-white text-[var(--color-text-main)] shadow-sm"
                   : "text-[var(--color-text-secondary)]"
               }`}
             >
@@ -119,7 +136,7 @@ export function LoginForm(props: LoginFormProps) {
 
       <div className="mt-6 space-y-5">
         <label className="block">
-          <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
+          <span className="mb-2 block text-xs font-semibold tracking-[0.12em] text-[var(--color-text-secondary)] uppercase">
             {messages.login.username}
           </span>
           <input
@@ -127,12 +144,14 @@ export function LoginForm(props: LoginFormProps) {
             type="text"
             required
             autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
             className="form-control"
           />
         </label>
 
         <label className="block">
-          <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
+          <span className="mb-2 block text-xs font-semibold tracking-[0.12em] text-[var(--color-text-secondary)] uppercase">
             {messages.login.password}
           </span>
           <input
@@ -163,7 +182,10 @@ export function LoginForm(props: LoginFormProps) {
       ) : null}
 
       {error ? (
-        <div role="alert" className="mt-5 rounded-[var(--radius-md)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div
+          role="alert"
+          className="mt-5 rounded-[var(--radius-md)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
           {error}
         </div>
       ) : null}

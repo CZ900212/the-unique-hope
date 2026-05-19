@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 
 import { resetPasswordSchema } from "~/lib/domain";
 import { getMessages } from "~/lib/i18n";
-import { resetPasswordWithToken } from "~/server/auth/password-reset";
+import {
+  hashPasswordResetToken,
+  resetPasswordWithToken,
+} from "~/server/auth/password-reset";
 import { getRequestLocale } from "~/server/locale";
+import { consumeRateLimit, extractClientIp } from "~/server/rate-limit";
 
 export async function POST(request: Request) {
   const messages = getMessages(getRequestLocale(request.headers));
@@ -33,6 +37,43 @@ export async function POST(request: Request) {
         },
       },
       { status: 400 },
+    );
+  }
+
+  const clientIp = extractClientIp(request);
+  const tokenHash = hashPasswordResetToken(parsed.data.token);
+  const [byToken, byIp] = await Promise.all([
+    consumeRateLimit({
+      action: "password-reset-confirm:token",
+      limit: 5,
+      subject: tokenHash,
+      windowMs: 15 * 60 * 1000,
+    }),
+    clientIp
+      ? consumeRateLimit({
+          action: "password-reset-confirm:ip",
+          limit: 20,
+          subject: clientIp,
+          windowMs: 15 * 60 * 1000,
+        })
+      : Promise.resolve(null),
+  ]);
+  if (!byToken.allowed || (byIp && !byIp.allowed)) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "TOO_MANY_REQUESTS",
+          message: messages.errors.passwordResetTooManyRequests,
+        },
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(
+            Math.max(byIp?.retryAfterSeconds ?? 0, byToken.retryAfterSeconds),
+          ),
+        },
+      },
     );
   }
 

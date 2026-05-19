@@ -1,0 +1,9 @@
+[Unit]
+Description=Drain The Unique Hope Web Push delivery queue
+After=network-online.target the-unique-hope.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/home/ubuntu/the-unique-hope/.env
+ExecStart=/usr/bin/curl -fsS -X POST http://127.0.0.1:3000/api/notifications/push/drain -H "Authorization: Bearer ${WEB_PUSH_DRAIN_SECRET}"

@@ -16,14 +16,17 @@ const mocks = vi.hoisted(() => {
 
   const insert = vi.fn();
   const lessonValues = vi.fn<
-    (input: Record<string, unknown>) => { onConflictDoUpdate: typeof lessonConflict }
+    (input: Record<string, unknown>) => {
+      onConflictDoUpdate: typeof lessonConflict;
+    }
   >();
-  const lessonConflict = vi.fn<
-    (input: ConflictInput) => { returning: typeof lessonReturning }
-  >();
+  const lessonConflict =
+    vi.fn<(input: ConflictInput) => { returning: typeof lessonReturning }>();
   const lessonReturning = vi.fn<() => Promise<Array<{ id: string }>>>();
   const noteValues = vi.fn<
-    (input: Record<string, unknown>) => { onConflictDoUpdate: typeof noteConflict }
+    (input: Record<string, unknown>) => {
+      onConflictDoUpdate: typeof noteConflict;
+    }
   >();
   const noteConflict = vi.fn<(input: ConflictInput) => Promise<void>>();
   const findSavedLesson = vi.fn();
@@ -35,7 +38,8 @@ const mocks = vi.hoisted(() => {
       },
     },
   };
-  const transaction = vi.fn<(callback: (tx: TxMock) => unknown) => Promise<unknown>>();
+  const transaction =
+    vi.fn<(callback: (tx: TxMock) => unknown) => Promise<unknown>>();
 
   return {
     db: {
@@ -63,7 +67,9 @@ describe("upsertTeacherLessonRecord", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mocks.transaction.mockImplementation(async (callback) => callback(mocks.tx));
+    mocks.transaction.mockImplementation(async (callback) =>
+      callback(mocks.tx),
+    );
     mocks.insert
       .mockReturnValueOnce({
         values: mocks.lessonValues,
@@ -116,7 +122,9 @@ describe("upsertTeacherLessonRecord", () => {
       status: "taught",
       weekNumber: 4,
     });
-    expect(mocks.lessonValues.mock.calls[0]?.[0]).not.toHaveProperty("evidenceKey");
+    expect(mocks.lessonValues.mock.calls[0]?.[0]).not.toHaveProperty(
+      "evidenceKey",
+    );
 
     const conflictInput = mocks.lessonConflict.mock.calls[0]?.[0] as {
       set: Record<string, unknown>;

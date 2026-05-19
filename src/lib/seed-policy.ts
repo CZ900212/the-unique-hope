@@ -26,7 +26,9 @@ export function isUnsafeSeedPassword(password: string) {
 export function resolveSeedPolicy(input: SeedPolicyInput) {
   const adminPassword = input.adminPassword?.trim();
   if (!adminPassword) {
-    throw new Error("SEED_ADMIN_PASSWORD is required before running the seed script.");
+    throw new Error(
+      "SEED_ADMIN_PASSWORD is required before running the seed script.",
+    );
   }
 
   if (isUnsafeSeedPassword(adminPassword)) {

@@ -10,7 +10,8 @@ vi.mock("~/server/rate-limit", () => ({
   extractClientIp: mocks.extractClientIp,
 }));
 
-const { enforcePublicSignupRateLimit } = await import("./public-signups");
+const { enforcePublicSignupRateLimit, enforceTeacherSignupRateLimit } =
+  await import("./public-signups");
 
 describe("enforcePublicSignupRateLimit", () => {
   beforeEach(() => {
@@ -24,7 +25,11 @@ describe("enforcePublicSignupRateLimit", () => {
   });
 
   it("still rate-limits by normalized phone when no trusted client IP is available", async () => {
-    await enforcePublicSignupRateLimit(new Headers(), " +1 (555) 123-4567 ", "en");
+    await enforcePublicSignupRateLimit(
+      new Headers(),
+      " +1 (555) 123-4567 ",
+      "en",
+    );
 
     expect(mocks.consumeRateLimit).toHaveBeenCalledTimes(1);
     expect(mocks.consumeRateLimit).toHaveBeenCalledWith({
@@ -76,6 +81,38 @@ describe("enforcePublicSignupRateLimit", () => {
     ).rejects.toMatchObject({
       code: "TOO_MANY_REQUESTS",
       message: "报名提交次数过多，请稍后再试。",
+    });
+  });
+
+  it("rate-limits teacher signups by normalized username when no trusted client IP is available", async () => {
+    await enforceTeacherSignupRateLimit(new Headers(), " 导师.Example ", "en");
+
+    expect(mocks.consumeRateLimit).toHaveBeenCalledTimes(1);
+    expect(mocks.consumeRateLimit).toHaveBeenCalledWith({
+      action: "signup:username",
+      limit: 2,
+      subject: "导师.example",
+      windowMs: 60 * 60 * 1000,
+    });
+  });
+
+  it("applies both username and IP limits for teacher signups when a trusted client IP is present", async () => {
+    mocks.extractClientIp.mockReturnValue("203.0.113.25");
+
+    await enforceTeacherSignupRateLimit(new Headers(), "Teacher.Example", "en");
+
+    expect(mocks.consumeRateLimit).toHaveBeenCalledTimes(2);
+    expect(mocks.consumeRateLimit).toHaveBeenCalledWith({
+      action: "signup:username",
+      limit: 2,
+      subject: "teacher.example",
+      windowMs: 60 * 60 * 1000,
+    });
+    expect(mocks.consumeRateLimit).toHaveBeenCalledWith({
+      action: "signup:ip",
+      limit: 5,
+      subject: "203.0.113.25",
+      windowMs: 60 * 60 * 1000,
     });
   });
 });

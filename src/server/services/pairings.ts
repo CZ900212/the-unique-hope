@@ -3,7 +3,12 @@ import { eq } from "drizzle-orm";
 
 import { DEFAULT_LOCALE, getMessages, type Locale } from "~/lib/i18n";
 import { db } from "~/server/db";
-import { pairings, profiles, studentSignups, teacherSignups } from "~/server/db/schema";
+import {
+  pairings,
+  profiles,
+  studentSignups,
+  teacherSignups,
+} from "~/server/db/schema";
 
 async function getProfileByUserId(userId: string, locale: Locale) {
   const messages = getMessages(locale);
@@ -49,6 +54,9 @@ export async function getStudentDashboardState(
   const pairing = await db.query.pairings.findFirst({
     where: eq(pairings.studentProfileId, profile.id),
     with: {
+      appointments: {
+        orderBy: (appointment, { asc }) => [asc(appointment.scheduledStart)],
+      },
       teacher: true,
       lessons: {
         with: {
@@ -100,6 +108,9 @@ export async function getTeacherDashboardState(
   const pairing = await db.query.pairings.findFirst({
     where: eq(pairings.teacherProfileId, profile.id),
     with: {
+      appointments: {
+        orderBy: (appointment, { asc }) => [asc(appointment.scheduledStart)],
+      },
       feedback: {
         orderBy: (feedback, { desc }) => [desc(feedback.weekNumber)],
       },

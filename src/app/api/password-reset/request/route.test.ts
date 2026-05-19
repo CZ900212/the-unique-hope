@@ -1,15 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  PasswordResetDeliveryError: class PasswordResetDeliveryError extends Error {
+const mocks = vi.hoisted(() => {
+  class PasswordResetDeliveryError extends Error {
     constructor(cause: unknown) {
       super("Failed to deliver password reset email.", { cause });
       this.name = "PasswordResetDeliveryError";
     }
-  },
-  consumeRateLimit: vi.fn(),
-  extractClientIp: vi.fn(),
-  requestPasswordReset: vi.fn(),
+  }
+
+  return {
+    PasswordResetDeliveryError,
+    consumeRateLimit: vi.fn(),
+    createManualRecoveryRequest: vi.fn(),
+    extractClientIp: vi.fn(),
+    requestPasswordReset: vi.fn(),
+  };
+});
+
+vi.mock("~/server/auth/manual-password-reset", () => ({
+  createManualRecoveryRequest: mocks.createManualRecoveryRequest,
 }));
 
 vi.mock("~/server/auth/password-reset", () => ({
@@ -27,19 +36,17 @@ const { POST } = await import("./route");
 describe("password reset request route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.createManualRecoveryRequest.mockResolvedValue({ status: "queued" });
     mocks.extractClientIp.mockReturnValue("203.0.113.10");
     mocks.consumeRateLimit.mockResolvedValue({
       allowed: true,
       retryAfterSeconds: 30,
       remaining: 2,
     });
+    mocks.requestPasswordReset.mockResolvedValue({ status: "queued" });
   });
 
-  it("does not expose preview reset URLs in the HTTP response", async () => {
-    mocks.requestPasswordReset.mockResolvedValue({
-      status: "preview",
-    });
-
+  it("routes email recovery requests through the email reset flow", async () => {
     const response = await POST(
       new Request("http://localhost/api/password-reset/request", {
         method: "POST",
@@ -47,28 +54,32 @@ describe("password reset request route", () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          recoveryMode: "email",
           identifier: "teacher@example.com",
           role: "teacher",
         }),
       }),
     );
     const payload = (await response.json()) as {
-      ok: boolean;
+      ok?: boolean;
       message?: string;
-      status?: string;
-      previewUrl?: string | null;
     };
 
     expect(response.status).toBe(200);
     expect(payload.ok).toBe(true);
-    expect(payload.message).toBeUndefined();
-    expect(payload.status).toBeUndefined();
-    expect(payload.previewUrl).toBeUndefined();
+    expect(payload.message).toBe(
+      "If this account can use email recovery, a reset link will be sent. If not, use manual recovery.",
+    );
+    expect(mocks.requestPasswordReset).toHaveBeenCalledWith({
+      identifier: "teacher@example.com",
+      role: "teacher",
+    });
+    expect(mocks.createManualRecoveryRequest).not.toHaveBeenCalled();
   });
 
-  it("collapses suppressed reset requests into the same generic success response", async () => {
+  it("does not expose whether an email account needs manual recovery", async () => {
     mocks.requestPasswordReset.mockResolvedValue({
-      status: "suppressed",
+      status: "manual_required",
     });
 
     const response = await POST(
@@ -78,24 +89,53 @@ describe("password reset request route", () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          identifier: "teacher.local",
+          recoveryMode: "email",
+          identifier: "student.local",
+          role: "student",
+        }),
+      }),
+    );
+    const payload = (await response.json()) as {
+      ok?: boolean;
+      message?: string;
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(payload.message).toBe(
+      "If this account can use email recovery, a reset link will be sent. If not, use manual recovery.",
+    );
+  });
+
+  it("returns 503 when email recovery is not configured", async () => {
+    mocks.requestPasswordReset.mockResolvedValue({ status: "unavailable" });
+
+    const response = await POST(
+      new Request("http://localhost/api/password-reset/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recoveryMode: "email",
+          identifier: "teacher@example.com",
           role: "teacher",
         }),
       }),
     );
     const payload = (await response.json()) as {
-      ok: boolean;
-      error?: { code?: string };
-      status?: string;
+      error?: { code?: string; message?: string };
     };
 
-    expect(response.status).toBe(200);
-    expect(payload.ok).toBe(true);
-    expect(payload.error).toBeUndefined();
-    expect(payload.status).toBeUndefined();
+    expect(response.status).toBe(503);
+    expect(payload.error).toEqual({
+      code: "PASSWORD_RESET_UNAVAILABLE",
+      message:
+        "Email recovery is not available right now. Please use manual recovery.",
+    });
   });
 
-  it("collapses delivery failures into the same generic success response", async () => {
+  it("collapses email delivery failures into the generic email response", async () => {
     mocks.requestPasswordReset.mockRejectedValue(
       new mocks.PasswordResetDeliveryError(
         new Error("mail provider unavailable"),
@@ -109,6 +149,7 @@ describe("password reset request route", () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          recoveryMode: "email",
           identifier: "teacher@example.com",
           role: "teacher",
         }),
@@ -116,15 +157,27 @@ describe("password reset request route", () => {
     );
     const payload = (await response.json()) as {
       ok?: boolean;
-      error?: { code?: string };
+      message?: string;
     };
 
     expect(response.status).toBe(200);
     expect(payload.ok).toBe(true);
-    expect(payload.error).toBeUndefined();
+    expect(payload.message).toBe(
+      "If this account can use email recovery, a reset link will be sent. If not, use manual recovery.",
+    );
   });
 
-  it("rejects admin password reset attempts with a fixed manual-reset message", async () => {
+  it("returns 429 when email recovery limits are exhausted", async () => {
+    mocks.consumeRateLimit
+      .mockResolvedValueOnce({
+        allowed: false,
+        retryAfterSeconds: 90,
+      })
+      .mockResolvedValueOnce({
+        allowed: true,
+        retryAfterSeconds: 30,
+      });
+
     const response = await POST(
       new Request("http://localhost/api/password-reset/request", {
         method: "POST",
@@ -132,28 +185,143 @@ describe("password reset request route", () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          identifier: "admin@example.com",
-          role: "admin",
+          recoveryMode: "email",
+          identifier: "teacher@example.com",
+          role: "teacher",
         }),
       }),
     );
     const payload = (await response.json()) as {
-      error?: {
-        code?: string;
-        message?: string;
-      };
+      error?: { code?: string; message?: string };
     };
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("90");
     expect(payload.error).toEqual({
-      code: "PASSWORD_RESET_DISABLED",
-      message:
-        "Admin password resets are handled internally. Contact the system owner.",
+      code: "TOO_MANY_REQUESTS",
+      message: "Too many password reset requests. Try again later.",
     });
     expect(mocks.requestPasswordReset).not.toHaveBeenCalled();
   });
 
-  it("localizes admin reset errors from the locale cookie", async () => {
+  it("returns the same generic success message for manual recovery requests", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/password-reset/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recoveryMode: "manual",
+          applicantRole: "student",
+          applicantName: "Iris",
+          applicantContact: "WeChat iris",
+          applicantNote: "Needs help",
+        }),
+      }),
+    );
+    const payload = (await response.json()) as {
+      ok?: boolean;
+      message?: string;
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(payload.message).toBe(
+      "Your request has been sent to the admin team for confirmation.",
+    );
+    expect(mocks.createManualRecoveryRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        applicantContact: "WeChat iris",
+        applicantName: "Iris",
+        applicantNote: "Needs help",
+        applicantRole: "student",
+      }),
+    );
+  });
+
+  it("still accepts the legacy manual recovery request shape", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/password-reset/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          applicantRole: "teacher",
+          applicantName: "Teacher",
+          applicantContact: "teacher@example.com",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.createManualRecoveryRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        applicantContact: "teacher@example.com",
+        applicantName: "Teacher",
+        applicantRole: "teacher",
+      }),
+    );
+  });
+
+  it("returns 429 when manual recovery request limits are exhausted", async () => {
+    mocks.createManualRecoveryRequest.mockResolvedValue({
+      retryAfterSeconds: 120,
+      status: "rate_limited",
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/password-reset/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recoveryMode: "manual",
+          applicantRole: "teacher",
+          applicantName: "Teacher",
+          applicantContact: "teacher@example.com",
+        }),
+      }),
+    );
+    const payload = (await response.json()) as {
+      error?: { code?: string; message?: string };
+    };
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("120");
+    expect(payload.error).toEqual({
+      code: "TOO_MANY_REQUESTS",
+      message: "Too many password reset requests. Try again later.",
+    });
+  });
+
+  it("rejects the old phone request shape", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/password-reset/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phone: "13800138000",
+        }),
+      }),
+    );
+    const payload = (await response.json()) as {
+      error?: { code?: string; message?: string };
+    };
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toEqual({
+      code: "BAD_REQUEST",
+      message: "Valid recovery information is required.",
+    });
+    expect(mocks.createManualRecoveryRequest).not.toHaveBeenCalled();
+  });
+
+  it("localizes validation errors from the locale cookie", async () => {
     const response = await POST(
       new Request("http://localhost/api/password-reset/request", {
         method: "POST",
@@ -162,22 +330,21 @@ describe("password reset request route", () => {
           cookie: "uh_locale=zh",
         },
         body: JSON.stringify({
-          identifier: "admin@example.com",
-          role: "admin",
+          recoveryMode: "manual",
+          applicantRole: "student",
+          applicantName: "",
+          applicantContact: "",
         }),
       }),
     );
     const payload = (await response.json()) as {
-      error?: {
-        code?: string;
-        message?: string;
-      };
+      error?: { code?: string; message?: string };
     };
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(400);
     expect(payload.error).toEqual({
-      code: "PASSWORD_RESET_DISABLED",
-      message: "管理员密码重置由系统负责人内部处理，请联系负责人。",
+      code: "BAD_REQUEST",
+      message: "请填写有效的找回信息。",
     });
   });
 });

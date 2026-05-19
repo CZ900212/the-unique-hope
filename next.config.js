@@ -4,13 +4,8 @@
  */
 import { fileURLToPath } from "node:url";
 
-import "./src/env.js";
-
 /** @type {import("next").NextConfig} */
 const config = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   outputFileTracingRoot: fileURLToPath(new URL(".", import.meta.url)),
 };
 

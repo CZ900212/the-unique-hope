@@ -15,10 +15,13 @@ export function PasswordResetConfirmForm(props: { token: string }) {
 
   const token = props.token.trim();
   const tokenMissing = token.length === 0;
-  const displayError = tokenMissing ? messages.resetConfirm.missingToken : error;
+  const displayError = tokenMissing
+    ? messages.resetConfirm.missingToken
+    : error;
 
   return (
     <form
+      method="post"
       onSubmit={(event) => {
         event.preventDefault();
         if (tokenMissing) {
@@ -44,14 +47,14 @@ export function PasswordResetConfirmForm(props: { token: string }) {
               }),
             });
 
-            const data = (await response.json().catch(() => null)) as
-              | {
-                  error?: { message?: string };
-                }
-              | null;
+            const data = (await response.json().catch(() => null)) as {
+              error?: { message?: string };
+            } | null;
 
             if (!response.ok) {
-              setError(data?.error?.message ?? messages.resetConfirm.resetError);
+              setError(
+                data?.error?.message ?? messages.resetConfirm.resetError,
+              );
               return;
             }
 
@@ -63,10 +66,10 @@ export function PasswordResetConfirmForm(props: { token: string }) {
         });
       }}
     >
-      <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-primary)]">
+      <div className="text-xs font-semibold tracking-[0.24em] text-[var(--color-primary)] uppercase">
         {messages.resetConfirm.subtitle}
       </div>
-      <h1 className="mt-4 font-[var(--font-title)] text-3xl tracking-tight text-[var(--color-text-main)]">
+      <h1 className="mt-4 text-3xl font-[var(--font-title)] tracking-tight text-[var(--color-text-main)]">
         {messages.resetConfirm.title}
       </h1>
       <p className="mt-3 text-sm leading-7 text-[var(--color-text-secondary)]">
@@ -75,7 +78,7 @@ export function PasswordResetConfirmForm(props: { token: string }) {
 
       <div className="mt-6 space-y-5">
         <label className="block">
-          <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
+          <span className="mb-2 block text-xs font-semibold tracking-[0.12em] text-[var(--color-text-secondary)] uppercase">
             {messages.resetConfirm.newPassword}
           </span>
           <input
@@ -83,14 +86,15 @@ export function PasswordResetConfirmForm(props: { token: string }) {
             type="password"
             disabled={tokenMissing || isPending}
             required
-            minLength={6}
+            minLength={8}
+            maxLength={64}
             autoComplete="new-password"
             className="form-control"
           />
         </label>
 
         <label className="block">
-          <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
+          <span className="mb-2 block text-xs font-semibold tracking-[0.12em] text-[var(--color-text-secondary)] uppercase">
             {messages.resetConfirm.confirmPassword}
           </span>
           <input
@@ -98,7 +102,8 @@ export function PasswordResetConfirmForm(props: { token: string }) {
             type="password"
             disabled={tokenMissing || isPending}
             required
-            minLength={6}
+            minLength={8}
+            maxLength={64}
             autoComplete="new-password"
             className="form-control"
           />
@@ -106,7 +111,10 @@ export function PasswordResetConfirmForm(props: { token: string }) {
       </div>
 
       {displayError ? (
-        <div role="alert" className="mt-5 rounded-[var(--radius-md)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div
+          role="alert"
+          className="mt-5 rounded-[var(--radius-md)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
           {displayError}
         </div>
       ) : null}
@@ -116,14 +124,22 @@ export function PasswordResetConfirmForm(props: { token: string }) {
         disabled={isPending || tokenMissing}
         className="btn-primary mt-6 w-full px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? messages.resetConfirm.updating : messages.resetConfirm.update}
+        {isPending
+          ? messages.resetConfirm.updating
+          : messages.resetConfirm.update}
       </button>
 
       <div className="mt-6 flex items-center justify-between text-sm text-[var(--color-text-secondary)]">
-        <Link href="/forgot-password" className="font-medium hover:text-[var(--color-text-main)]">
+        <Link
+          href="/forgot-password"
+          className="font-medium hover:text-[var(--color-text-main)]"
+        >
           {messages.resetConfirm.requestAnother}
         </Link>
-        <Link href="/login" className="font-medium hover:text-[var(--color-text-main)]">
+        <Link
+          href="/login"
+          className="font-medium hover:text-[var(--color-text-main)]"
+        >
           {messages.resetConfirm.backLogin}
         </Link>
       </div>

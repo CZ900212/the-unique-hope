@@ -3,6 +3,8 @@ import { and, eq } from "drizzle-orm";
 
 import { feedback, lessons } from "~/server/db/schema";
 import {
+  appointmentRequestSchema,
+  appointmentResponseSchema,
   feedbackUpsertSchema,
   TOTAL_WEEKS,
   weekSchema,
@@ -15,17 +17,28 @@ import {
   getStudentDashboardState,
   requireMatchedStudentPairing,
 } from "~/server/services/pairings";
+import {
+  requestLessonAppointment,
+  respondToLessonAppointment,
+  serializeAppointment,
+  serializeAppointments,
+} from "~/server/services/appointments";
+import { notifyStudentFeedbackVisible } from "~/server/services/notifications";
 
 const studentProcedure = roleProtectedProcedure("student");
 
 export const studentRouter = createTRPCRouter({
   dashboard: studentProcedure.query(async ({ ctx }) => {
-    const state = await getStudentDashboardState(ctx.session.user.id, ctx.locale);
+    const state = await getStudentDashboardState(
+      ctx.session.user.id,
+      ctx.locale,
+    );
 
     if (state.matchingStatus !== "matched") {
       return {
         matchingStatus: state.matchingStatus,
-        rejectReason: state.matchingStatus === "rejected" ? state.rejectReason : "",
+        rejectReason:
+          state.matchingStatus === "rejected" ? state.rejectReason : "",
         student: {
           id: state.profile.id,
           name: state.profile.name,
@@ -34,7 +47,9 @@ export const studentRouter = createTRPCRouter({
     }
 
     const { pairing, profile } = state;
-    const byWeek = new Map(pairing.lessons.map((lesson) => [lesson.weekNumber, lesson]));
+    const byWeek = new Map(
+      pairing.lessons.map((lesson) => [lesson.weekNumber, lesson]),
+    );
     const weeks = Array.from({ length: TOTAL_WEEKS }, (_, index) => {
       const weekNumber = index + 1;
       const lesson = byWeek.get(weekNumber);
@@ -54,6 +69,7 @@ export const studentRouter = createTRPCRouter({
       },
       meetingLink: pairing.meetingLink,
       teacher: pairing.teacher,
+      appointments: serializeAppointments(pairing.appointments),
       progress: {
         taughtCount: weeks.filter((week) => week.status === "taught").length,
         totalWeeks: TOTAL_WEEKS,
@@ -62,48 +78,92 @@ export const studentRouter = createTRPCRouter({
     };
   }),
 
-  lesson: studentProcedure
-    .input(weekSchema)
-    .query(async ({ ctx, input }) => {
-      const { pairing, profile } = await requireMatchedStudentPairing(
+  requestAppointment: studentProcedure
+    .input(appointmentRequestSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { pairing } = await requireMatchedStudentPairing(
         ctx.session.user.id,
         ctx.locale,
       );
-
-      const lesson = await ctx.db.query.lessons.findFirst({
-        where: and(eq(lessons.pairingId, pairing.id), eq(lessons.weekNumber, input)),
-        with: {
-          notes: true,
-        },
+      const appointment = await requestLessonAppointment({
+        appointmentId: input.id,
+        durationMinutes: input.durationMinutes,
+        locale: ctx.locale,
+        pairingId: pairing.id,
+        requestedBy: "student",
+        scheduledStart: input.scheduledStart,
       });
-
-      const feedbackRow = await ctx.db.query.feedback.findFirst({
-        where: and(
-          eq(feedback.pairingId, pairing.id),
-          eq(feedback.studentProfileId, profile.id),
-          eq(feedback.weekNumber, input),
-        ),
-      });
-      const feedbackAllowed = isStudentFeedbackAllowed(lesson?.status);
 
       return {
-        lesson: {
-          weekNumber: input,
-          status: lesson?.status ?? "pending",
-          feedbackAllowed,
-          evidenceUrl: lesson
-            ? buildProtectedLessonEvidenceUrl(lesson.id, lesson.evidenceKey)
+        appointment: serializeAppointment(appointment),
+      };
+    }),
+
+  respondAppointment: studentProcedure
+    .input(appointmentResponseSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { pairing } = await requireMatchedStudentPairing(
+        ctx.session.user.id,
+        ctx.locale,
+      );
+      const appointment = await respondToLessonAppointment({
+        action: input.action,
+        appointmentId: input.id,
+        locale: ctx.locale,
+        pairingId: pairing.id,
+        reason: input.reason,
+        responder: "student",
+      });
+
+      return {
+        appointment: serializeAppointment(appointment),
+      };
+    }),
+
+  lesson: studentProcedure.input(weekSchema).query(async ({ ctx, input }) => {
+    const { pairing, profile } = await requireMatchedStudentPairing(
+      ctx.session.user.id,
+      ctx.locale,
+    );
+
+    const lesson = await ctx.db.query.lessons.findFirst({
+      where: and(
+        eq(lessons.pairingId, pairing.id),
+        eq(lessons.weekNumber, input),
+      ),
+      with: {
+        notes: true,
+      },
+    });
+
+    const feedbackRow = await ctx.db.query.feedback.findFirst({
+      where: and(
+        eq(feedback.pairingId, pairing.id),
+        eq(feedback.studentProfileId, profile.id),
+        eq(feedback.weekNumber, input),
+      ),
+    });
+    const feedbackAllowed = isStudentFeedbackAllowed(lesson?.status);
+
+    return {
+      lesson: {
+        weekNumber: input,
+        status: lesson?.status ?? "pending",
+        feedbackAllowed,
+        evidenceUrl: lesson
+          ? buildProtectedLessonEvidenceUrl(lesson.id, lesson.evidenceKey)
+          : null,
+        notes:
+          lesson?.notes?.visibility === "shared"
+            ? {
+                text: lesson.notes.text,
+                visibility: lesson.notes.visibility,
+                updated_at: lesson.notes.updatedAt,
+              }
             : null,
-          notes:
-            lesson?.notes?.visibility === "shared"
-              ? {
-                  text: lesson.notes.text,
-                  visibility: lesson.notes.visibility,
-                  updated_at: lesson.notes.updatedAt,
-                }
-              : null,
-        },
-        feedback: feedbackAllowed && feedbackRow
+      },
+      feedback:
+        feedbackAllowed && feedbackRow
           ? {
               text: feedbackRow.text,
               rating: feedbackRow.rating,
@@ -111,8 +171,8 @@ export const studentRouter = createTRPCRouter({
               updated_at: feedbackRow.updatedAt,
             }
           : null,
-      };
-    }),
+    };
+  }),
 
   saveFeedback: studentProcedure
     .input(feedbackUpsertSchema)
@@ -123,7 +183,10 @@ export const studentRouter = createTRPCRouter({
         ctx.locale,
       );
       const lesson = await ctx.db.query.lessons.findFirst({
-        where: and(eq(lessons.pairingId, pairing.id), eq(lessons.weekNumber, input.week)),
+        where: and(
+          eq(lessons.pairingId, pairing.id),
+          eq(lessons.weekNumber, input.week),
+        ),
       });
 
       if (!isStudentFeedbackAllowed(lesson?.status)) {
@@ -145,7 +208,11 @@ export const studentRouter = createTRPCRouter({
           updatedAt: new Date(),
         })
         .onConflictDoUpdate({
-          target: [feedback.pairingId, feedback.studentProfileId, feedback.weekNumber],
+          target: [
+            feedback.pairingId,
+            feedback.studentProfileId,
+            feedback.weekNumber,
+          ],
           set: {
             text: input.text,
             rating: input.rating,
@@ -154,6 +221,13 @@ export const studentRouter = createTRPCRouter({
           },
         })
         .returning();
+
+      await notifyStudentFeedbackVisible({
+        pairing,
+        student: profile,
+        visibility: saved!.visibility,
+        week: saved!.weekNumber,
+      });
 
       return {
         feedback: {

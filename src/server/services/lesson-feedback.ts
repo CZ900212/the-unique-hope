@@ -28,7 +28,8 @@ export function findLatestTeacherVisibleFeedback(
   return (
     feedbackRows.find(
       (feedback) =>
-        feedback.visibility === "shared" && taughtWeeks.has(feedback.weekNumber),
+        feedback.visibility === "shared" &&
+        taughtWeeks.has(feedback.weekNumber),
     ) ?? null
   );
 }

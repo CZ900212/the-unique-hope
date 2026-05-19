@@ -7,7 +7,7 @@ import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { useState } from "react";
 import SuperJSON from "superjson";
 
-import { type AppRouter } from "~/server/api/root";
+import type { AppRouter } from "~/server/api/root";
 import { createQueryClient } from "./query-client";
 
 let clientQueryClientSingleton: QueryClient | undefined = undefined;
@@ -46,8 +46,11 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
       links: [
         loggerLink({
           enabled: (op) =>
-            process.env.NODE_ENV === "development" ||
-            (op.direction === "down" && op.result instanceof Error),
+            (process.env.NODE_ENV === "development" &&
+              typeof window === "undefined") ||
+            (process.env.NODE_ENV !== "development" &&
+              op.direction === "down" &&
+              op.result instanceof Error),
         }),
         httpBatchStreamLink({
           transformer: SuperJSON,
@@ -59,7 +62,7 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
           },
         }),
       ],
-    })
+    }),
   );
 
   return (

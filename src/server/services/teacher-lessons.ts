@@ -1,20 +1,14 @@
 import { and, eq } from "drizzle-orm";
 
-import {
-  type LessonStatus,
-  type Visibility,
-} from "~/lib/domain";
+import { type LessonStatus, type Visibility } from "~/lib/domain";
 import { db } from "~/server/db";
-import {
-  lessons,
-  lessonNotes,
-} from "~/server/db/schema";
+import { lessons, lessonNotes } from "~/server/db/schema";
 import { createStoredLessonEvidenceFields } from "~/server/lesson-evidence";
 
 type UploadedEvidence = {
   mime: string;
   pathname: string;
-  url: string;
+  url: string | null;
 };
 
 type UpsertTeacherLessonInput = {
@@ -32,10 +26,15 @@ export async function findTeacherLesson(pairingId: string, week: number) {
   });
 }
 
-export async function upsertTeacherLessonRecord(input: UpsertTeacherLessonInput) {
+export async function upsertTeacherLessonRecord(
+  input: UpsertTeacherLessonInput,
+) {
   const now = new Date();
   const storedEvidence = input.uploadedEvidence
-    ? createStoredLessonEvidenceFields(input.uploadedEvidence, input.uploadedEvidence.mime)
+    ? createStoredLessonEvidenceFields(
+        input.uploadedEvidence,
+        input.uploadedEvidence.mime,
+      )
     : null;
 
   return db.transaction(async (tx) => {

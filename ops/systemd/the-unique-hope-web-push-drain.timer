@@ -1,0 +1,11 @@
+[Unit]
+Description=Run The Unique Hope Web Push drain every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=10s
+Unit=the-unique-hope-web-push-drain.service
+
+[Install]
+WantedBy=timers.target

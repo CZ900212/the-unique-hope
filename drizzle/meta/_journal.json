@@ -15,6 +15,55 @@
       "when": 1775740275814,
       "tag": "0001_futuristic_puma",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777431932164,
+      "tag": "0002_true_night_thrasher",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777445727599,
+      "tag": "0003_lethal_secret_warriors",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777525246878,
+      "tag": "0004_repair_lesson_appointment_constraints",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778198400000,
+      "tag": "0005_real_calendar_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778220513877,
+      "tag": "0006_web_push_delivery_outbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778395200000,
+      "tag": "0007_student_phone_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779116097000,
+      "tag": "0008_manual_recovery_requests",
+      "breakpoints": true
     }
   ]
 }

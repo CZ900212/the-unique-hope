@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { clampPage, filterAdminPairings, paginateAdminPairings } from "./admin-pairings";
+import {
+  clampPage,
+  filterAdminPairings,
+  paginateAdminPairings,
+} from "./admin-pairings";
 
 const pairings = [
   {

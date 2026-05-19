@@ -13,6 +13,12 @@ type ActiveUserSession = {
   user: typeof users.$inferSelect;
 };
 
+const LOGIN_PATH_BY_ROLE = {
+  admin: "/admin/login",
+  student: "/login",
+  teacher: "/login",
+} satisfies Record<Role, string>;
+
 export async function loadActiveUserSession(session: Session | null) {
   if (!session?.user?.id) {
     return null;
@@ -65,7 +71,7 @@ export async function getActiveUserSession() {
 export async function requirePageUser(role?: Role) {
   const active = await getActiveUserSession();
   if (!active) {
-    redirect("/login");
+    redirect(role ? LOGIN_PATH_BY_ROLE[role] : "/login");
   }
 
   if (role && active.profile.role !== role) {

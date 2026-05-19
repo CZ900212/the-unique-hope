@@ -6,7 +6,7 @@ import { AuthPageShell } from "~/components/auth-page-shell";
 import { LoginForm } from "~/components/login-form";
 import { getMessages } from "~/lib/i18n";
 import { getActiveUserSession } from "~/server/auth/active-session";
-import { getServerLocale } from "~/server/locale";
+import { getServerLocale } from "~/server/server-locale";
 
 export const metadata: Metadata = {
   robots: {
@@ -33,7 +33,10 @@ export default async function AdminLoginPage() {
       locale={locale}
       footer={
         <>
-          <Link href="/" className="font-medium transition-colors hover:text-[var(--color-text-main)]">
+          <Link
+            href="/"
+            className="font-medium transition-colors hover:text-[var(--color-text-main)]"
+          >
             {messages.common.backHome}
           </Link>
           <span>{messages.adminLogin.staffOnly}</span>

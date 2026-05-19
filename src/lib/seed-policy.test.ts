@@ -6,7 +6,9 @@ describe("seed policy", () => {
   it("rejects placeholder and known demo passwords", () => {
     expect(isUnsafeSeedPassword("change-me-now")).toBe(true);
     expect(isUnsafeSeedPassword(" demo123456 ")).toBe(true);
-    expect(isUnsafeSeedPassword("replace-with-a-unique-admin-password")).toBe(true);
+    expect(isUnsafeSeedPassword("replace-with-a-unique-admin-password")).toBe(
+      true,
+    );
     expect(isUnsafeSeedPassword("actual-unique-password-2026")).toBe(false);
   });
 

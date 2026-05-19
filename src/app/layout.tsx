@@ -1,12 +1,19 @@
 import "~/styles/globals.css";
 
-import { type Metadata } from "next";
-import { Inter, Source_Serif_4, Space_Grotesk } from "next/font/google";
+import { type Metadata, type Viewport } from "next";
+import localFont from "next/font/local";
 
 import { LocaleProvider } from "~/components/locale-provider";
 import { getMessages } from "~/lib/i18n";
-import { getServerLocale } from "~/server/locale";
+import { getServerLocale } from "~/server/server-locale";
 import { TRPCReactProvider } from "~/trpc/react";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#10b981",
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getServerLocale();
@@ -22,22 +29,55 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const inter = Inter({
-  subsets: ["latin"],
+const manropeDisplay = localFont({
+  src: [
+    {
+      path: "../../public/fonts/Manrope-Regular.ttf",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/Manrope-Bold.ttf",
+      weight: "700",
+      style: "normal",
+    },
+  ],
   variable: "--font-display",
-  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
 });
 
-const sourceSerif4 = Source_Serif_4({
-  subsets: ["latin"],
+const manropeBody = localFont({
+  src: [
+    {
+      path: "../../public/fonts/Manrope-Regular.ttf",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/Manrope-Bold.ttf",
+      weight: "700",
+      style: "normal",
+    },
+  ],
   variable: "--font-body",
-  weight: ["400", "600", "700"],
+  display: "swap",
 });
 
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
+const frauncesTitle = localFont({
+  src: [
+    {
+      path: "../../public/fonts/Fraunces-Regular.ttf",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/Fraunces-Bold.ttf",
+      weight: "700",
+      style: "normal",
+    },
+  ],
   variable: "--font-title",
-  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 export default async function RootLayout({
@@ -46,7 +86,10 @@ export default async function RootLayout({
   const locale = await getServerLocale();
 
   return (
-    <html lang={locale} className={`${inter.variable} ${sourceSerif4.variable} ${spaceGrotesk.variable}`}>
+    <html
+      lang={locale}
+      className={`${manropeDisplay.variable} ${manropeBody.variable} ${frauncesTitle.variable}`}
+    >
       <body>
         <LocaleProvider locale={locale}>
           <TRPCReactProvider>{children}</TRPCReactProvider>
