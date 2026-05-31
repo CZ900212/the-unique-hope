@@ -1,6 +1,6 @@
 # The Unique Hope
-
-当前激活的应用是仓库根目录下的单体 `Next.js` 项目，采用 T3 风格技术栈：
+uniquehopeclub.com
+当前激活的应用是仓库根目录下的单体 `Next.js` 项目
 
 - `Next.js 15` App Router
 - `tRPC 11`
